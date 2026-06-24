@@ -741,6 +741,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                                 <button
                                   key={subj.id}
                                   onClick={() => {
+                                    localStorage.setItem('selectedSubjectId', subj.id);
                                     setActiveSection('Subjects');
                                     setSearchOpen(false);
                                     setSearchQuery('');
@@ -764,6 +765,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                                 <button
                                   key={note.id}
                                   onClick={() => {
+                                    localStorage.setItem('selectedNoteId', note.id);
                                     setActiveSection('Notes');
                                     setSearchOpen(false);
                                     setSearchQuery('');
@@ -787,6 +789,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                                 <button
                                   key={task.id}
                                   onClick={() => {
+                                    if (task.date) {
+                                      localStorage.setItem('selectedTaskDate', task.date);
+                                    }
                                     setActiveSection('Planner');
                                     setSearchOpen(false);
                                     setSearchQuery('');
@@ -810,6 +815,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                                 <button
                                   key={asg.id}
                                   onClick={() => {
+                                    localStorage.setItem('selectedAssignmentId', asg.id);
                                     setActiveSection('Assignments');
                                     setSearchOpen(false);
                                     setSearchQuery('');
@@ -833,6 +839,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                                 <button
                                   key={proj.id}
                                   onClick={() => {
+                                    localStorage.setItem('selectedProjectId', proj.id);
                                     setActiveSection('Projects');
                                     setSearchOpen(false);
                                     setSearchQuery('');

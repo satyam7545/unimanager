@@ -19,6 +19,17 @@ export const Planner: React.FC = () => {
     NIGHT: '',
   });
 
+  // Deep-link redirect handler from search
+  React.useEffect(() => {
+    const redirectedTaskDateStr = localStorage.getItem('selectedTaskDate');
+    if (redirectedTaskDateStr) {
+      const parsedDate = new Date(redirectedTaskDateStr);
+      parsedDate.setHours(0, 0, 0, 0);
+      setSelectedDate(parsedDate);
+      localStorage.removeItem('selectedTaskDate');
+    }
+  }, []);
+
   // Format active date to ISO query formats (YYYY-MM-DD)
   const getISOQueryDate = (d: Date) => {
     return d.toISOString().slice(0, 10);

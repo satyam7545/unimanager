@@ -13,6 +13,15 @@ export const Subjects: React.FC = () => {
   const [newColor, setNewColor] = useState('#8B5CF6'); // default violet
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Deep-link redirect handler from search
+  React.useEffect(() => {
+    const redirectedSubjId = localStorage.getItem('selectedSubjectId');
+    if (redirectedSubjId) {
+      setSelectedSubjectId(redirectedSubjId);
+      localStorage.removeItem('selectedSubjectId');
+    }
+  }, []);
+
   const { setActiveSection } = useUIStore();
   const [viewingNote, setViewingNote] = useState<any | null>(null);
   const [viewingAssignment, setViewingAssignment] = useState<any | null>(null);

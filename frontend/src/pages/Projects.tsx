@@ -14,6 +14,15 @@ export const Projects: React.FC = () => {
   const [githubUrl, setGithubUrl] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Deep-link redirect handler from search
+  React.useEffect(() => {
+    const redirectedProjId = localStorage.getItem('selectedProjectId');
+    if (redirectedProjId) {
+      setSelectedProjectId(redirectedProjId);
+      localStorage.removeItem('selectedProjectId');
+    }
+  }, []);
+
   // 1. Fetch all projects
   const { data: projects, isLoading } = useQuery({
     queryKey: ['projects'],

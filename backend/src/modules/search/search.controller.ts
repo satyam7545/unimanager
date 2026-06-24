@@ -44,7 +44,7 @@ export class SearchController {
             title: { contains: query }
           },
           take: 5,
-          select: { id: true, title: true, status: true }
+          select: { id: true, title: true, status: true, date: true }
         }),
         prisma.assignment.findMany({
           where: {
