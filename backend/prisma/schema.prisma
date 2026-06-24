@@ -1,0 +1,326 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  passwordHash  String
+  name          String
+  semester      String?
+  studyStreak   Int            @default(0)
+  lastActiveAt  DateTime       @default(now())
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // Relationships
+  refreshTokens RefreshToken[]
+  subjects      Subject[]
+  notes         Note[]
+  folders       Folder[]
+  tags          Tag[]
+  assignments   Assignment[]
+  tasks         Task[]
+  projects      Project[]
+  habits        Habit[]
+  events        Event[]
+  resources     Resource[]
+  notifications Notification[]
+  conversations Conversation[]
+  aiSettings    AISetting[]
+  attachments   Attachment[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique @db.VarChar(512)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Subject {
+  id        String   @id @default(uuid())
+  name      String
+  color     String   @default("#8B5CF6")
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notes       Note[]
+  assignments Assignment[]
+  events      Event[]
+  resources   Resource[]
+
+  @@index([userId])
+}
+
+model Folder {
+  id        String   @id @default(uuid())
+  name      String
+  parentId  String?
+  parent    Folder?  @relation("FolderToFolder", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Folder[] @relation("FolderToFolder")
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notes Note[]
+
+  @@index([userId])
+  @@index([parentId])
+}
+
+model Tag {
+  id        String   @id @default(uuid())
+  name      String
+  color     String   @default("#6B7280")
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notes Note[] @relation("NoteToTag")
+
+  @@index([userId])
+}
+
+model Note {
+  id         String   @id @default(uuid())
+  title      String
+  content    String   @db.LongText
+  isRichText Boolean  @default(false)
+  isPinned   Boolean  @default(false)
+  isFavorite Boolean  @default(false)
+  folderId   String?
+  folder     Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  subjectId  String?
+  subject    Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tags        Tag[]        @relation("NoteToTag")
+  attachments Attachment[]
+
+  @@index([userId])
+  @@index([folderId])
+  @@index([subjectId])
+}
+
+model Assignment {
+  id          String    @id @default(uuid())
+  title       String
+  description String?   @db.Text
+  priority    String    @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  status      String    @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
+  deadline    DateTime
+  subjectId   String?
+  subject     Subject?  @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  tasks       Task[]
+  attachments Attachment[]
+
+  @@index([userId])
+  @@index([subjectId])
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?  @db.Text
+  githubUrl   String?
+  progress    Float    @default(0.0)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tasks       Task[]
+  attachments Attachment[]
+
+  @@index([userId])
+}
+
+model Task {
+  id           String      @id @default(uuid())
+  title        String
+  status       String      @default("TODO") // TODO, IN_PROGRESS, TESTING, DONE
+  priority     String      @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  order        Int         @default(0)
+  columnId     String      @default("ideas") // ideas, planned, in_progress, testing, completed
+  projectId    String?
+  project      Project?    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignmentId String?
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  parentId     String?
+  parent       Task?       @relation("SubTasks", fields: [parentId], references: [id], onDelete: Cascade)
+  children     Task[]      @relation("SubTasks")
+  date         DateTime?
+  timeSlot     String?     @default("AFTERNOON") // MORNING, AFTERNOON, NIGHT
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([assignmentId])
+  @@index([parentId])
+}
+
+model Habit {
+  id        String   @id @default(uuid())
+  name      String
+  icon      String   @default("Flame")
+  frequency String   @default("DAILY") // DAILY, WEEKLY
+  target    Int      @default(1) // Number of completions needed per cycle
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  logs HabitLog[]
+
+  @@index([userId])
+}
+
+model HabitLog {
+  id          String   @id @default(uuid())
+  habitId     String
+  habit       Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  completedAt DateTime @default(now())
+  value       Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  @@index([habitId])
+}
+
+model Event {
+  id          String   @id @default(uuid())
+  title       String
+  description String?  @db.Text
+  startAt     DateTime
+  endAt       DateTime
+  color       String   @default("#3B82F6")
+  isAllDay    Boolean  @default(false)
+  subjectId   String?
+  subject     Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([subjectId])
+}
+
+model Resource {
+  id        String   @id @default(uuid())
+  title     String
+  type      String   @default("LINK") // LINK, PDF, IMAGE, OTHER
+  url       String   @db.Text
+  subjectId String?
+  subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([subjectId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String   @db.Text
+  isRead    Boolean  @default(false)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Conversation {
+  id        String    @id @default(uuid())
+  provider  String
+  model     String
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  messages  Message[]
+
+  @@index([userId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  role           String       @default("USER") // USER, ASSISTANT, SYSTEM
+  content        String       @db.LongText
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+}
+
+model AISetting {
+  id           String   @id @default(uuid())
+  provider     String   @default("openai")
+  apiKey       String?  @db.VarChar(512)
+  endpoint     String?  @db.VarChar(256)
+  model        String?
+  temperature  Float    @default(0.7)
+  maxTokens    Int      @default(2048)
+  systemPrompt String?  @db.Text
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Attachment {
+  id           String      @id @default(uuid())
+  fileName     String
+  fileType     String
+  filePath     String      @db.Text
+  fileSize     Int
+  noteId       String?
+  note         Note?       @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  projectId    String?
+  project      Project?    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignmentId String?
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([noteId])
+  @@index([projectId])
+  @@index([assignmentId])
+}
