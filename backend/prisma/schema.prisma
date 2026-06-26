@@ -52,6 +52,7 @@ model Subject {
   id        String   @id @default(uuid())
   name      String
   color     String   @default("#8B5CF6")
+  semester  String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
@@ -107,12 +108,13 @@ model Note {
   folder     Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
   subjectId  String?
   subject    Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  semester   String?
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  tags        Tag[]        @relation("NoteToTag")
+  tags       Tag[]        @relation("NoteToTag")
   attachments Attachment[]
 
   @@index([userId])
@@ -129,6 +131,7 @@ model Assignment {
   deadline    DateTime
   subjectId   String?
   subject     Subject?  @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  semester    String?
   userId      String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime  @default(now())

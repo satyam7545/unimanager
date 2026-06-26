@@ -10,6 +10,7 @@ export const createNoteSchema = z.object({
     isRichText: z.boolean().optional().default(false),
     folderId: z.string().nullable().optional(),
     subjectId: z.string().nullable().optional(),
+    semester: z.string().nullable().optional(),
   }),
 });
 
@@ -29,6 +30,7 @@ export const updateNoteSchema = z.object({
     isFavorite: z.boolean().optional(),
     folderId: z.string().nullable().optional(),
     subjectId: z.string().nullable().optional(),
+    semester: z.string().nullable().optional(),
     tags: z.array(z.string()).optional(), // Names of tags to associate
   }),
 });

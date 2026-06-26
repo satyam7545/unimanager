@@ -30,6 +30,7 @@ export class AssignmentService {
       status: string;
       deadline: string;
       subjectId?: string | null;
+      semester?: string | null;
     }
   ): Promise<Assignment> {
     // Validate subject ownership
@@ -56,6 +57,7 @@ export class AssignmentService {
       status?: string;
       deadline?: string;
       subjectId?: string | null;
+      semester?: string | null;
     }
   ): Promise<Assignment> {
     const assignment = await this.repository.findById(id);

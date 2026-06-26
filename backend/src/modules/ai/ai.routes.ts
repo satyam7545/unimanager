@@ -19,6 +19,7 @@ router.delete('/conversations/:id', controller.deleteConversation);
 
 router.get('/conversations/:id/messages', controller.getMessages);
 router.post('/conversations/:id/messages', validateRequest(sendMessageSchema), controller.sendMessage);
+router.post('/conversations/:id/messages/stream', validateRequest(sendMessageSchema), controller.streamMessage);
 
 // Dedicated Study Tool Features
 router.post('/features/summarize-pdf', upload.single('file'), controller.summarizePDF);

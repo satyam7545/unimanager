@@ -11,6 +11,7 @@ export const createAssignmentSchema = z.object({
     status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED']).optional().default('PENDING'),
     deadline: z.string({ required_error: 'Deadline is required' }).datetime('Invalid date format'),
     subjectId: z.string().nullable().optional(),
+    semester: z.string().nullable().optional(),
   }),
 });
 
@@ -29,5 +30,6 @@ export const updateAssignmentSchema = z.object({
     status: z.enum(['PENDING', 'IN_PROGRESS', 'COMPLETED']).optional(),
     deadline: z.string().datetime('Invalid date format').optional(),
     subjectId: z.string().nullable().optional(),
+    semester: z.string().nullable().optional(),
   }),
 });

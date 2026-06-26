@@ -11,6 +11,7 @@ export const createSubjectSchema = z.object({
       .regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Must be a valid hex color string')
       .optional()
       .default('#8B5CF6'),
+    semester: z.string().nullable().optional(),
   }),
 });
 
@@ -28,5 +29,6 @@ export const updateSubjectSchema = z.object({
       .string()
       .regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Must be a valid hex color string')
       .optional(),
+    semester: z.string().nullable().optional(),
   }),
 });

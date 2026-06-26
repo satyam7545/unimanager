@@ -9,7 +9,7 @@ export class CalendarController {
         throw new BadRequestError('User session context missing.');
       }
       const userId = req.user.userId;
-      const { start, end } = req.query;
+      const { start, end, semester } = req.query;
 
       if (!start || !end) {
         throw new BadRequestError('Start and end date queries are required.');
@@ -24,21 +24,38 @@ export class CalendarController {
           where: {
             userId,
             startAt: { gte: startDate },
-            endAt: { lte: endDate }
+            endAt: { lte: endDate },
+            ...(semester && {
+              subject: { semester: String(semester) }
+            })
           },
-          include: { subject: { select: { name: true, color: true } } }
+          include: { subject: { select: { name: true, color: true, semester: true } } }
         }),
         prisma.assignment.findMany({
           where: {
             userId,
-            deadline: { gte: startDate, lte: endDate }
+            deadline: { gte: startDate, lte: endDate },
+            ...(semester && {
+              OR: [
+                { semester: String(semester) },
+                { subject: { semester: String(semester) } }
+              ]
+            })
           },
-          include: { subject: { select: { name: true, color: true } } }
+          include: { subject: { select: { name: true, color: true, semester: true } } }
         }),
         prisma.task.findMany({
           where: {
             userId,
-            date: { gte: startDate, lte: endDate }
+            date: { gte: startDate, lte: endDate },
+            ...(semester && {
+              assignment: {
+                OR: [
+                  { semester: String(semester) },
+                  { subject: { semester: String(semester) } }
+                ]
+              }
+            })
           },
           include: { project: { select: { name: true } } }
         })

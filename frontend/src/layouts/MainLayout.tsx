@@ -38,9 +38,16 @@ interface MainLayoutProps {
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
-  const { sidebarOpen, activeSection, toggleSidebar, setActiveSection } = useUIStore();
+  const { sidebarOpen, activeSection, toggleSidebar, setActiveSection, selectedSemester, setSelectedSemester } = useUIStore();
   const { user } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Initialize selectedSemester to user's semester if available on first load
+  useEffect(() => {
+    if (user?.semester && selectedSemester === 'all') {
+      setSelectedSemester(user.semester);
+    }
+  }, [user]);
 
   const queryClient = useQueryClient();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -373,6 +380,22 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
 
           <div className="flex items-center gap-4">
+            {/* Global Semester Filter */}
+            <div className="flex items-center gap-1.5 bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-lg px-2.5 py-1 text-xs font-semibold text-zinc-300 transition-all select-none">
+              <span className="text-[10px] uppercase font-bold text-zinc-500">Semester:</span>
+              <select
+                value={selectedSemester}
+                onChange={(e) => setSelectedSemester(e.target.value)}
+                className="bg-transparent border-none text-xs text-white focus:outline-none cursor-pointer font-bold select-none"
+              >
+                <option value="all" className="bg-zinc-950 text-zinc-300">All</option>
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                  <option key={s} value={String(s)} className="bg-zinc-950 text-zinc-300">
+                    Semester {s}
+                  </option>
+                ))}
+              </select>
+            </div>
             {/* Search Trigger */}
             <button
               onClick={() => setSearchOpen(true)}

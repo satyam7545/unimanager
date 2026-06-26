@@ -22,9 +22,10 @@ export const Subjects: React.FC = () => {
     }
   }, []);
 
-  const { setActiveSection } = useUIStore();
+  const { setActiveSection, selectedSemester } = useUIStore();
   const [viewingNote, setViewingNote] = useState<any | null>(null);
   const [viewingAssignment, setViewingAssignment] = useState<any | null>(null);
+  const [newSemester, setNewSemester] = useState('');
 
   const updateAssignmentStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
@@ -40,9 +41,13 @@ export const Subjects: React.FC = () => {
 
   // 1. Fetch all subjects
   const { data: subjectsData, isLoading: subjectsLoading } = useQuery({
-    queryKey: ['subjects'],
+    queryKey: ['subjects', selectedSemester],
     queryFn: async () => {
-      const res = await api.get('/subjects');
+      let url = '/subjects';
+      if (selectedSemester && selectedSemester !== 'all') {
+        url += `?semester=${selectedSemester}`;
+      }
+      const res = await api.get(url);
       return res.data.subjects;
     },
   });
@@ -60,12 +65,13 @@ export const Subjects: React.FC = () => {
 
   // 3. Create subject mutation
   const createSubjectMutation = useMutation({
-    mutationFn: async (data: { name: string; color: string }) => {
+    mutationFn: async (data: { name: string; color: string; semester: string | null }) => {
       return api.post('/subjects', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subjects'] });
       setNewName('');
+      setNewSemester('');
       setShowAddModal(false);
       setErrorMsg(null);
     },
@@ -157,13 +163,13 @@ export const Subjects: React.FC = () => {
   };
 
   const handleCreateSubject = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newName.trim()) {
-      setErrorMsg('Subject name cannot be empty.');
-      return;
-    }
-    createSubjectMutation.mutate({ name: newName, color: newColor });
-  };
+     e.preventDefault();
+     if (!newName.trim()) {
+       setErrorMsg('Subject name cannot be empty.');
+       return;
+     }
+     createSubjectMutation.mutate({ name: newName, color: newColor, semester: newSemester || null });
+   };
 
   const handleDeleteSubject = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -395,7 +401,14 @@ export const Subjects: React.FC = () => {
               >
                 <div>
                   <h3 className="font-bold text-lg text-white truncate">{subject.name}</h3>
-                  <span className="text-xs text-zinc-500 block mt-1">Course Code Scopes</span>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-xs text-zinc-500 block">Course Code Scopes</span>
+                    {subject.semester && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded font-extrabold bg-primary/20 text-primary border border-primary/30">
+                        Sem {subject.semester}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-4">
                   <span className="text-xs text-zinc-400 font-medium flex items-center gap-1">
@@ -457,6 +470,22 @@ export const Subjects: React.FC = () => {
                     />
                   ))}
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Academic Semester</label>
+                <select
+                  value={newSemester}
+                  onChange={(e) => setNewSemester(e.target.value)}
+                  className="w-full h-10 px-3 bg-zinc-900 border border-white/10 rounded-lg text-sm text-white focus:outline-none"
+                >
+                  <option value="">None / Not Applicable</option>
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                    <option key={s} value={String(s)}>
+                      Semester {s}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex gap-3 pt-3">

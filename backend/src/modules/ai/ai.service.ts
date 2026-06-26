@@ -29,7 +29,7 @@ export class AIService {
 
   async saveSettings(userId: string, data: any) {
     const existing = await this.aiRepository.getSettings(userId);
-    
+
     let apiKey = data.apiKey;
     // If apiKey is masked (e.g. contains '...'), keep the old key
     if (apiKey && apiKey.includes('...') && existing) {
@@ -61,7 +61,7 @@ export class AIService {
   async createConversation(userId: string) {
     const settings = await this.aiRepository.getSettings(userId);
     const provider = settings?.provider || 'openai';
-    
+
     let defaultModel = 'gpt-4o-mini';
     if (provider === 'gemini') defaultModel = 'gemini-1.5-flash';
     else if (provider === 'claude') defaultModel = 'claude-3-5-sonnet-20240620';
@@ -121,7 +121,7 @@ export class AIService {
 
     // 3. Compile history of messages for prompt context
     const rawHistory = await this.aiRepository.getMessages(conversationId, userId);
-    
+
     // Select last 10 messages to keep context window clean
     const recentHistory = rawHistory.slice(-10);
 
@@ -159,10 +159,97 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
     return this.aiRepository.createMessage(conversationId, 'ASSISTANT', assistantReply);
   }
 
+  async streamMessage(
+    userId: string,
+    conversationId: string,
+    content: string,
+    includeRag: boolean,
+    onChunk: (chunk: string) => void
+  ): Promise<Message> {
+    const conversation = await this.aiRepository.findConversationById(conversationId, userId);
+    if (!conversation) {
+      throw new Error('Conversation not found or unauthorized');
+    }
+
+    // 1. Persist User Message
+    await this.aiRepository.createMessage(conversationId, 'USER', content);
+
+    // 2. Fetch User AI Settings
+    const settings = await this.aiRepository.getSettings(userId);
+    const provider = settings?.provider || 'openai';
+    const rawApiKey = settings?.apiKey || '';
+    const temp = settings?.temperature ?? 0.7;
+    const maxToks = settings?.maxTokens ?? 2048;
+    const systemPrompt = settings?.systemPrompt || 'You are UniManager Assistant, a helpful AI tutor integrated into the student workspace.';
+
+    // Resolve API Key from DB or env fallback
+    let apiKey = rawApiKey;
+    if (!apiKey) {
+      if (provider === 'openai') apiKey = process.env.OPENAI_API_KEY || '';
+      else if (provider === 'gemini') apiKey = process.env.GEMINI_API_KEY || '';
+      else if (provider === 'claude') apiKey = process.env.ANTHROPIC_API_KEY || '';
+      else if (provider === 'deepseek') apiKey = process.env.DEEPSEEK_API_KEY || '';
+    }
+
+    // Check mock mode trigger
+    const isMock = apiKey.toLowerCase() === 'mock' || provider.toLowerCase() === 'mock' || (!apiKey && ['openai', 'gemini', 'claude', 'deepseek'].includes(provider));
+
+    // 3. Compile history of messages for prompt context
+    const rawHistory = await this.aiRepository.getMessages(conversationId, userId);
+
+    // Select last 10 messages to keep context window clean
+    const recentHistory = rawHistory.slice(-10);
+
+    // 4. Retrieve RAG context if enabled
+    let combinedSystemPrompt = systemPrompt;
+    if (includeRag && !isMock) {
+      const ragContext = await this.extractRagContext(userId, content);
+      if (ragContext) {
+        combinedSystemPrompt += `\n\n[CONTEXT FROM THE USER'S WORKSPACE (Use this to answer questions accurately and specifically):]\n${ragContext}`;
+      }
+    }
+
+    // 5. Stream LLM Provider completions
+    let assistantReply = '';
+    const chunkCollector = (chunk: string) => {
+      assistantReply += chunk;
+      onChunk(chunk);
+    };
+
+    if (isMock) {
+      const mockReply = `[Sandbox/Mock Mode] Thank you for your question! Here is a mock response because you configured 'mock' as your API key, or no API credentials were found in your settings.
+
+Your message was: "${content}"
+
+If you want real AI completions, please configure a valid API key (for OpenAI, Gemini, Claude, or DeepSeek) or start a local LLM server (Ollama or LM Studio) in the AI Settings dashboard.`;
+      
+      const chunks = mockReply.match(/.{1,8}/g) || [mockReply];
+      for (const chunk of chunks) {
+        chunkCollector(chunk);
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+    } else {
+      await this.streamLLMProvider(
+        provider,
+        apiKey,
+        settings?.endpoint || null,
+        conversation.model,
+        recentHistory,
+        temp,
+        maxToks,
+        combinedSystemPrompt,
+        chunkCollector
+      );
+    }
+
+    // 6. Save Assistant Reply to Database
+    return this.aiRepository.createMessage(conversationId, 'ASSISTANT', assistantReply);
+  }
+
   // Local RAG Search Context Extraction
   private async extractRagContext(userId: string, prompt: string): Promise<string> {
     const keywords = this.extractKeywords(prompt);
-    
+
     const lowerPrompt = prompt.toLowerCase();
     const wantsAssignments = lowerPrompt.includes('assignment') || lowerPrompt.includes('homework') || lowerPrompt.includes('due') || lowerPrompt.includes('deadline');
     const wantsTasks = lowerPrompt.includes('task') || lowerPrompt.includes('todo') || lowerPrompt.includes('planner') || lowerPrompt.includes('plan');
@@ -274,25 +361,25 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
   private extractKeywords(prompt: string): string[] {
     const clean = prompt.toLowerCase().replace(/[^\w\s]/g, '');
     const words = clean.split(/\s+/);
-    
+
     const stopWords = new Set([
-      'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'arent', 'as', 'at', 
-      'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by', 
-      'can', 'cant', 'cannot', 'could', 'couldnt', 'did', 'didnt', 'do', 'does', 'doesnt', 'doing', 'dont', 'down', 'during', 
-      'each', 'few', 'for', 'from', 'further', 'had', 'hadnt', 'has', 'hasnt', 'have', 'havent', 'having', 'he', 'hed', 
-      'hell', 'hes', 'her', 'here', 'heres', 'hers', 'herself', 'him', 'himself', 'his', 'how', 'hows', 
-      'i', 'id', 'ill', 'im', 'ive', 'if', 'in', 'into', 'is', 'isnt', 'it', 'its', 'itself', 'lets', 'me', 'more', 'most', 
-      'mustnt', 'my', 'myself', 'no', 'nor', 'not', 'of', 'off', 'on', 'once', 'only', 'or', 'other', 'ought', 'our', 'ours', 
-      'ourselves', 'out', 'over', 'own', 'same', 'shant', 'she', 'shed', 'shell', 'shes', 'should', 'shouldnt', 'so', 'some', 
-      'such', 'than', 'that', 'thats', 'the', 'their', 'theirs', 'them', 'themselves', 'then', 'there', 'theres', 'these', 
-      'they', 'theyd', 'theyll', 'theyre', 'theyve', 'this', 'those', 'through', 'to', 'too', 'under', 'until', 'up', 'very', 
-      'was', 'wasnt', 'we', 'wed', 'well', 'were', 'weve', 'werent', 'what', 'whats', 'when', 'whens', 'where', 'wheres', 
-      'which', 'while', 'who', 'whos', 'whom', 'why', 'whys', 'with', 'wont', 'would', 'wouldnt', 'you', 'youd', 'youll', 
+      'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'arent', 'as', 'at',
+      'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by',
+      'can', 'cant', 'cannot', 'could', 'couldnt', 'did', 'didnt', 'do', 'does', 'doesnt', 'doing', 'dont', 'down', 'during',
+      'each', 'few', 'for', 'from', 'further', 'had', 'hadnt', 'has', 'hasnt', 'have', 'havent', 'having', 'he', 'hed',
+      'hell', 'hes', 'her', 'here', 'heres', 'hers', 'herself', 'him', 'himself', 'his', 'how', 'hows',
+      'i', 'id', 'ill', 'im', 'ive', 'if', 'in', 'into', 'is', 'isnt', 'it', 'its', 'itself', 'lets', 'me', 'more', 'most',
+      'mustnt', 'my', 'myself', 'no', 'nor', 'not', 'of', 'off', 'on', 'once', 'only', 'or', 'other', 'ought', 'our', 'ours',
+      'ourselves', 'out', 'over', 'own', 'same', 'shant', 'she', 'shed', 'shell', 'shes', 'should', 'shouldnt', 'so', 'some',
+      'such', 'than', 'that', 'thats', 'the', 'their', 'theirs', 'them', 'themselves', 'then', 'there', 'theres', 'these',
+      'they', 'theyd', 'theyll', 'theyre', 'theyve', 'this', 'those', 'through', 'to', 'too', 'under', 'until', 'up', 'very',
+      'was', 'wasnt', 'we', 'wed', 'well', 'were', 'weve', 'werent', 'what', 'whats', 'when', 'whens', 'where', 'wheres',
+      'which', 'while', 'who', 'whos', 'whom', 'why', 'whys', 'with', 'wont', 'would', 'wouldnt', 'you', 'youd', 'youll',
       'youre', 'youve', 'your', 'yours', 'yourself', 'yourselves',
       'write', 'create', 'make', 'generate', 'show', 'list', 'explain', 'tell', 'summarize', 'find', 'search', 'get', 'help',
       'please', 'want', 'need', 'how', 'what', 'who', 'where', 'when', 'why'
     ]);
-    
+
     return Array.from(new Set(words.filter(w => w.length > 2 && !stopWords.has(w))));
   }
 
@@ -307,7 +394,7 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
     maxTokens: number,
     systemPrompt: string
   ): Promise<string> {
-    
+
     let url = '';
     let headers: Record<string, string> = { 'Content-Type': 'application/json' };
     let body: any = {};
@@ -409,6 +496,171 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
     }
   }
 
+  private async streamLLMProvider(
+    provider: string,
+    apiKey: string,
+    customEndpoint: string | null,
+    model: string,
+    history: Message[],
+    temperature: number,
+    maxTokens: number,
+    systemPrompt: string,
+    onChunk: (chunk: string) => void
+  ): Promise<void> {
+    let url = '';
+    let headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    let body: any = {};
+
+    // Map openai, deepseek, gemini, ollama, lmstudio to OpenAI-compatible formats
+    if (provider === 'openai') {
+      url = customEndpoint || 'https://api.openai.com/v1/chat/completions';
+      if (!apiKey) throw new Error('OpenAI API Key is missing. Please configure it in AI Settings.');
+      headers['Authorization'] = `Bearer ${apiKey}`;
+      body = {
+        model: model || 'gpt-4o-mini',
+        temperature,
+        max_tokens: maxTokens,
+        messages: this.formatMessagesForOpenAI(systemPrompt, history),
+        stream: true,
+      };
+    } else if (provider === 'gemini') {
+      url = customEndpoint || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+      if (!apiKey) throw new Error('Gemini API Key is missing. Please configure it in AI Settings.');
+      headers['Authorization'] = `Bearer ${apiKey}`;
+      body = {
+        model: model || 'gemini-1.5-flash',
+        temperature,
+        max_tokens: maxTokens,
+        messages: this.formatMessagesForOpenAI(systemPrompt, history),
+        stream: true,
+      };
+    } else if (provider === 'deepseek') {
+      url = customEndpoint || 'https://api.deepseek.com/chat/completions';
+      if (!apiKey) throw new Error('DeepSeek API Key is missing. Please configure it in AI Settings.');
+      headers['Authorization'] = `Bearer ${apiKey}`;
+      body = {
+        model: model || 'deepseek-chat',
+        temperature,
+        max_tokens: maxTokens,
+        messages: this.formatMessagesForOpenAI(systemPrompt, history),
+        stream: true,
+      };
+    } else if (provider === 'ollama') {
+      const baseEndpoint = customEndpoint || 'http://127.0.0.1:11434/v1/chat/completions';
+      const resolvedModel = await this.getOllamaModelFallback(baseEndpoint, model || 'llama3');
+      url = baseEndpoint;
+      body = {
+        model: resolvedModel,
+        temperature,
+        max_tokens: maxTokens,
+        messages: this.formatMessagesForOpenAI(systemPrompt, history),
+        stream: true,
+      };
+    } else if (provider === 'lmstudio') {
+      url = customEndpoint || 'http://127.0.0.1:1234/v1/chat/completions';
+      body = {
+        model: model || 'local-model',
+        temperature,
+        max_tokens: maxTokens,
+        messages: this.formatMessagesForOpenAI(systemPrompt, history),
+        stream: true,
+      };
+    } else if (provider === 'claude') {
+      url = customEndpoint || 'https://api.anthropic.com/v1/messages';
+      if (!apiKey) throw new Error('Anthropic API Key is missing. Please configure it in AI Settings.');
+      headers['x-api-key'] = apiKey;
+      headers['anthropic-version'] = '2023-06-01';
+      body = {
+        model: model || 'claude-3-5-sonnet-20240620',
+        temperature,
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: history.map(h => ({
+          role: h.role.toLowerCase() === 'assistant' ? 'assistant' : 'user',
+          content: h.content,
+        })),
+        stream: true,
+      };
+    } else {
+      throw new Error(`Unsupported LLM provider: ${provider}`);
+    }
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`AI Provider HTTP Error (${response.status}): ${errText || response.statusText}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is empty, cannot stream.');
+      }
+
+      let buffer = '';
+      const decoder = new TextDecoder('utf-8');
+
+      if (typeof (response.body as any).getReader === 'function') {
+        const reader = (response.body as any).getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value || new Uint8Array(), { stream: true });
+          buffer = this.parseSseBuffer(provider, buffer, onChunk);
+        }
+      } else if (typeof (response.body as any)[Symbol.asyncIterator] === 'function') {
+        for await (const chunk of response.body as any) {
+          const chunkStr = typeof chunk === 'string' ? chunk : decoder.decode(chunk);
+          buffer += chunkStr;
+          buffer = this.parseSseBuffer(provider, buffer, onChunk);
+        }
+      } else {
+        throw new Error('Response body is not a readable stream.');
+      }
+    } catch (e: any) {
+      throw new Error(`LLM streaming execution failed: ${e.message}`);
+    }
+  }
+
+  private parseSseBuffer(provider: string, buffer: string, onChunk: (chunk: string) => void): string {
+    const lines = buffer.split('\n');
+    const leftover = lines.pop() || ''; // Keep the last incomplete line
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      if (trimmed.startsWith('data: ')) {
+        const dataStr = trimmed.slice(6);
+        if (dataStr === '[DONE]') {
+          continue;
+        }
+
+        try {
+          const parsed = JSON.parse(dataStr);
+          if (provider === 'claude') {
+            if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+              onChunk(parsed.delta.text);
+            }
+          } else {
+            const content = parsed.choices?.[0]?.delta?.content || '';
+            if (content) {
+              onChunk(content);
+            }
+          }
+        } catch (e) {
+          // Ignore parse errors on partial stream lines
+        }
+      }
+    }
+
+    return leftover;
+  }
+
   private formatMessagesForOpenAI(systemPrompt: string, history: Message[]) {
     const messages = [];
     if (systemPrompt) {
@@ -444,10 +696,10 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
         const data = (await response.json()) as { models?: Array<{ name: string }> };
         if (data.models && data.models.length > 0) {
           const names = data.models.map((m) => m.name);
-          
+
           // 1. Exact match
           if (names.includes(requestedModel)) return requestedModel;
-          
+
           // 2. Exact match with tag appended
           if (!requestedModel.includes(':') && names.includes(`${requestedModel}:latest`)) {
             return `${requestedModel}:latest`;
@@ -538,7 +790,7 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
           ]);
         }
       }
-      
+
       return `[Sandbox/Mock Mode] This is a mock response analyzing your prompt.
       
 - **Key Takeaway 1:** Organize your notes cleanly using folders.
@@ -602,11 +854,11 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
     if (!parsedText.trim()) {
       throw new Error('PDF file appears to be empty or contains only non-readable scanned images. Try running Image OCR on screenshots instead.');
     }
-    
+
     const textSlice = parsedText.slice(0, 12000);
     const systemPrompt = "You are an expert academic tutor. Summarize the text extracted from the student's uploaded PDF file. Provide a structured summary containing: 1) A high-level overview, 2) Key study themes and definitions, 3) Detailed bullet points explaining core concepts, and 4) A glossary of important terms. Use markdown formatting with clear headers, bold text, and lists.";
     const userPrompt = `Here is the text extracted from the PDF document:\n\n${textSlice}\n\nSummarize this content thoroughly.`;
-    
+
     return this.executeDirectCompletion(userId, systemPrompt, userPrompt, false);
   }
 
@@ -614,7 +866,7 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
     const settings = await this.aiRepository.getSettings(userId);
     const provider = settings?.provider || 'openai';
     const rawApiKey = settings?.apiKey || '';
-    
+
     let apiKey = rawApiKey;
     if (!apiKey) {
       if (provider === 'openai') apiKey = process.env.OPENAI_API_KEY || '';
@@ -622,9 +874,9 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
       else if (provider === 'claude') apiKey = process.env.ANTHROPIC_API_KEY || '';
       else if (provider === 'deepseek') apiKey = process.env.DEEPSEEK_API_KEY || '';
     }
-    
+
     const isMock = apiKey.toLowerCase() === 'mock' || provider.toLowerCase() === 'mock' || (!apiKey && ['openai', 'gemini', 'claude', 'deepseek'].includes(provider));
-    
+
     if (isMock) {
       return `[Sandbox/Mock OCR Mode] Extracted text from uploaded image (${file.originalname}):
       
@@ -642,11 +894,11 @@ All-in-One Student Operating System
       let url = '';
       let headers: Record<string, string> = { 'Content-Type': 'application/json' };
       let body: any = {};
-      
+
       let defaultModel = 'gpt-4o-mini';
       if (provider === 'gemini') defaultModel = 'gemini-1.5-flash';
       else if (provider === 'claude') defaultModel = 'claude-3-5-sonnet-20240620';
-      
+
       const model = settings?.model || defaultModel;
 
       if (provider === 'openai') {
@@ -805,7 +1057,7 @@ Generate a sequence of 3-7 actionable subtasks (e.g. initial outline, drafting s
 
   async generateRevisionNotes(userId: string, options: { content?: string; noteId?: string }): Promise<string> {
     let textToAnalyze = options.content || '';
-    
+
     if (options.noteId) {
       const note = await prisma.note.findFirst({
         where: { id: options.noteId, userId }

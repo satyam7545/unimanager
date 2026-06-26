@@ -3,9 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock, Trash2, BookOpen, AlertCircle } from 'lucide-react';
 import { api } from '@/services/api';
 import { GlassCard } from '@/components/GlassCard';
+import { useUIStore } from '@/store/uiStore';
 
 export const Calendar: React.FC = () => {
   const queryClient = useQueryClient();
+  const { selectedSemester } = useUIStore();
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'agenda'>('month');
 
@@ -39,9 +41,13 @@ export const Calendar: React.FC = () => {
 
   // 1. Fetch unified calendar events
   const { data: eventsData, isLoading } = useQuery({
-    queryKey: ['calendarEvents', start, end],
+    queryKey: ['calendarEvents', start, end, selectedSemester],
     queryFn: async () => {
-      const res = await api.get(`/calendar/events?start=${start}&end=${end}`);
+      let url = `/calendar/events?start=${start}&end=${end}`;
+      if (selectedSemester && selectedSemester !== 'all') {
+        url += `&semester=${selectedSemester}`;
+      }
+      const res = await api.get(url);
       return res.data.events;
     },
   });

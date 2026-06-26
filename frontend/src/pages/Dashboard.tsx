@@ -15,14 +15,20 @@ import {
 import { api } from '@/services/api';
 import { useAuthStore } from '../features/auth/store/authStore';
 import { GlassCard } from '@/components/GlassCard';
+import { useUIStore } from '@/store/uiStore';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuthStore();
+  const { selectedSemester } = useUIStore();
 
   const { data: summary, isLoading, error } = useQuery({
-    queryKey: ['dashboardSummary'],
+    queryKey: ['dashboardSummary', selectedSemester],
     queryFn: async () => {
-      const res = await api.get('/dashboard');
+      let url = '/dashboard';
+      if (selectedSemester && selectedSemester !== 'all') {
+        url += `?semester=${selectedSemester}`;
+      }
+      const res = await api.get(url);
       return res.data;
     },
   });

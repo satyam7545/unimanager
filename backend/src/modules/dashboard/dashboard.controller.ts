@@ -9,6 +9,7 @@ export class DashboardController {
         throw new BadRequestError('User session context missing.');
       }
       const userId = req.user.userId;
+      const { semester } = req.query;
 
       // Define date boundaries for "today"
       const startOfToday = new Date();
@@ -78,7 +79,13 @@ export class DashboardController {
           where: {
             userId,
             status: { not: 'COMPLETED' },
-            deadline: { gte: new Date() }
+            deadline: { gte: new Date() },
+            ...(semester && {
+              OR: [
+                { semester: String(semester) },
+                { subject: { semester: String(semester) } }
+              ]
+            })
           },
           include: {
             subject: { select: { id: true, name: true, color: true } }

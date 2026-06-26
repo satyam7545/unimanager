@@ -7,11 +7,12 @@ export interface NoteFilters {
   subjectId?: string | null;
   isPinned?: boolean;
   isFavorite?: boolean;
+  semester?: string | null;
 }
 
 export class NoteRepository {
   async findAllByUserId(userId: string, filters: NoteFilters = {}): Promise<Note[]> {
-    const { search, folderId, subjectId, isPinned, isFavorite } = filters;
+    const { search, folderId, subjectId, isPinned, isFavorite, semester } = filters;
 
     return prisma.note.findMany({
       where: {
@@ -29,11 +30,17 @@ export class NoteRepository {
           subjectId !== undefined ? { subjectId } : {},
           isPinned !== undefined ? { isPinned } : {},
           isFavorite !== undefined ? { isFavorite } : {},
+          semester ? {
+            OR: [
+              { semester },
+              { subject: { semester } },
+            ],
+          } : {},
         ],
       },
       include: {
         tags: true,
-        subject: { select: { id: true, name: true, color: true } },
+        subject: { select: { id: true, name: true, color: true, semester: true } },
         attachments: true,
       },
       orderBy: [
@@ -48,7 +55,7 @@ export class NoteRepository {
       where: { id },
       include: {
         tags: true,
-        subject: { select: { id: true, name: true, color: true } },
+        subject: { select: { id: true, name: true, color: true, semester: true } },
         attachments: true,
       },
     });
@@ -62,6 +69,7 @@ export class NoteRepository {
       isRichText?: boolean;
       folderId?: string | null;
       subjectId?: string | null;
+      semester?: string | null;
     }
   ): Promise<Note> {
     return prisma.note.create({
@@ -72,6 +80,7 @@ export class NoteRepository {
         isRichText: data.isRichText ?? false,
         folderId: data.folderId || null,
         subjectId: data.subjectId || null,
+        semester: data.semester || null,
       },
       include: {
         tags: true,
@@ -89,6 +98,7 @@ export class NoteRepository {
       isFavorite?: boolean;
       folderId?: string | null;
       subjectId?: string | null;
+      semester?: string | null;
     },
     tagIds?: string[]
   ): Promise<Note> {
@@ -104,7 +114,7 @@ export class NoteRepository {
       },
       include: {
         tags: true,
-        subject: { select: { id: true, name: true, color: true } },
+        subject: { select: { id: true, name: true, color: true, semester: true } },
       },
     });
   }

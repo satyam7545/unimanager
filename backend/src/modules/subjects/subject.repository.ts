@@ -2,9 +2,13 @@ import { prisma } from '../../utils/prisma';
 import { Subject } from '@prisma/client';
 
 export class SubjectRepository {
-  async findAllByUserId(userId: string): Promise<Subject[]> {
+  async findAllByUserId(userId: string, filters: { semester?: string } = {}): Promise<Subject[]> {
+    const { semester } = filters;
     return prisma.subject.findMany({
-      where: { userId },
+      where: { 
+        userId,
+        ...(semester && { semester }),
+      },
       orderBy: { name: 'asc' },
     });
   }
@@ -30,22 +34,24 @@ export class SubjectRepository {
     });
   }
 
-  async create(userId: string, name: string, color: string): Promise<Subject> {
+  async create(userId: string, name: string, color: string, semester?: string | null): Promise<Subject> {
     return prisma.subject.create({
       data: {
         userId,
         name,
         color,
+        semester: semester || null,
       },
     });
   }
 
-  async update(id: string, name?: string, color?: string): Promise<Subject> {
+  async update(id: string, name?: string, color?: string, semester?: string | null): Promise<Subject> {
     return prisma.subject.update({
       where: { id },
       data: {
         ...(name && { name }),
         ...(color && { color }),
+        ...(semester !== undefined && { semester: semester || null }),
       },
     });
   }

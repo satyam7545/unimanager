@@ -10,7 +10,11 @@ export class SubjectController {
       if (!req.user) {
         throw new BadRequestError('User session context missing.');
       }
-      const subjects = await this.service.getAllSubjects(req.user.userId);
+      const { semester } = req.query;
+      const filters = {
+        ...(semester && { semester: String(semester) }),
+      };
+      const subjects = await this.service.getAllSubjects(req.user.userId, filters);
       res.status(200).json({
         status: 'success',
         results: subjects.length,
@@ -41,8 +45,8 @@ export class SubjectController {
       if (!req.user) {
         throw new BadRequestError('User session context missing.');
       }
-      const { name, color } = req.body;
-      const subject = await this.service.createSubject(req.user.userId, name, color);
+      const { name, color, semester } = req.body;
+      const subject = await this.service.createSubject(req.user.userId, name, color, semester);
       res.status(201).json({
         status: 'success',
         data: { subject },
@@ -57,8 +61,8 @@ export class SubjectController {
       if (!req.user) {
         throw new BadRequestError('User session context missing.');
       }
-      const { name, color } = req.body;
-      const subject = await this.service.updateSubject(req.params.id, req.user.userId, name, color);
+      const { name, color, semester } = req.body;
+      const subject = await this.service.updateSubject(req.params.id, req.user.userId, name, color, semester);
       res.status(200).json({
         status: 'success',
         data: { subject },

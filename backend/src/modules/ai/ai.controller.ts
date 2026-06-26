@@ -118,6 +118,46 @@ export class AIController {
     }
   };
 
+  streamMessage = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) {
+        throw new BadRequestError('User session context missing.');
+      }
+      const { content, includeRag } = req.body;
+      const conversationId = req.params.id;
+
+      // Set headers for Server-Sent Events
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders();
+
+      const sendSse = (event: string, data: any) => {
+        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      };
+
+      const message = await this.service.streamMessage(
+        req.user.userId,
+        conversationId,
+        content,
+        includeRag ?? true,
+        (chunk: string) => {
+          sendSse('chunk', { chunk });
+        }
+      );
+
+      sendSse('done', { message });
+      res.end();
+    } catch (error: any) {
+      if (res.headersSent) {
+        res.write(`event: error\ndata: ${JSON.stringify({ message: error.message })}\n\n`);
+        res.end();
+      } else {
+        next(error);
+      }
+    }
+  };
+
   summarizePDF = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!req.user) {

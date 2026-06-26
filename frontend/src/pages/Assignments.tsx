@@ -3,9 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, List, Kanban, Calendar, Clock, Trash2, Edit3, Filter, Paperclip, Download, RefreshCw } from 'lucide-react';
 import { api } from '@/services/api';
 import { GlassCard } from '@/components/GlassCard';
+import { useUIStore } from '@/store/uiStore';
 
 export const Assignments: React.FC = () => {
   const queryClient = useQueryClient();
+  const { selectedSemester } = useUIStore();
   const [viewMode, setViewMode] = useState<'list' | 'board'>('list');
   const [subjectFilter, setSubjectFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
@@ -17,6 +19,7 @@ export const Assignments: React.FC = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [subjectId, setSubjectId] = useState('');
+  const [semester, setSemester] = useState('');
   const [priority, setPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'>('MEDIUM');
   const [status, setStatus] = useState<'PENDING' | 'IN_PROGRESS' | 'COMPLETED'>('PENDING');
   const [deadline, setDeadline] = useState('');
@@ -76,12 +79,15 @@ export const Assignments: React.FC = () => {
 
   // 1. Fetch assignments
   const { data: assignments, isLoading } = useQuery({
-    queryKey: ['assignments', subjectFilter, priorityFilter, statusFilter],
+    queryKey: ['assignments', subjectFilter, priorityFilter, statusFilter, selectedSemester],
     queryFn: async () => {
       let url = '/assignments?';
       if (subjectFilter) url += `subjectId=${subjectFilter}&`;
       if (priorityFilter) url += `priority=${priorityFilter}&`;
       if (statusFilter) url += `status=${statusFilter}&`;
+      if (selectedSemester && selectedSemester !== 'all') {
+        url += `semester=${selectedSemester}&`;
+      }
       const res = await api.get(url);
       return res.data.assignments;
     },
@@ -136,6 +142,7 @@ export const Assignments: React.FC = () => {
     setTitle('');
     setDescription('');
     setSubjectId('');
+    setSemester('');
     setPriority('MEDIUM');
     setStatus('PENDING');
     setDeadline('');
@@ -148,6 +155,7 @@ export const Assignments: React.FC = () => {
     setTitle(ass.title);
     setDescription(ass.description || '');
     setSubjectId(ass.subjectId || '');
+    setSemester(ass.semester || '');
     setPriority(ass.priority);
     setStatus(ass.status);
     
@@ -159,6 +167,16 @@ export const Assignments: React.FC = () => {
     setShowAddModal(true);
   };
 
+  const handleSubjectChange = (val: string) => {
+    setSubjectId(val);
+    if (val) {
+      const selectedSub = subjects?.find((s: any) => s.id === val);
+      if (selectedSub?.semester) {
+        setSemester(selectedSub.semester);
+      }
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !deadline) return;
@@ -167,6 +185,7 @@ export const Assignments: React.FC = () => {
       title,
       description,
       subjectId: subjectId || null,
+      semester: semester || null,
       priority,
       status,
       deadline: new Date(deadline).toISOString(),
@@ -328,6 +347,11 @@ export const Assignments: React.FC = () => {
                         {ass.subject.name}
                       </span>
                     )}
+                    {(ass.semester || ass.subject?.semester) && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-primary/20 text-primary border border-primary/30">
+                        Sem {ass.semester || ass.subject?.semester}
+                      </span>
+                    )}
                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${getPriorityColor(ass.priority)}`}>
                       {ass.priority}
                     </span>
@@ -421,6 +445,11 @@ export const Assignments: React.FC = () => {
                             {ass.subject.name}
                           </span>
                         )}
+                        {(ass.semester || ass.subject?.semester) && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-primary/20 text-primary border border-primary/30">
+                            Sem {ass.semester || ass.subject?.semester}
+                          </span>
+                        )}
                         <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${getPriorityColor(ass.priority)}`}>
                           {ass.priority}
                         </span>
@@ -512,7 +541,7 @@ export const Assignments: React.FC = () => {
                   <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Subject</label>
                   <select
                     value={subjectId}
-                    onChange={(e) => setSubjectId(e.target.value)}
+                    onChange={(e) => handleSubjectChange(e.target.value)}
                     className="w-full h-10 px-3 bg-zinc-900 border border-white/10 rounded-lg text-sm text-white focus:outline-none"
                   >
                     <option value="">None</option>
@@ -524,6 +553,24 @@ export const Assignments: React.FC = () => {
                   </select>
                 </div>
 
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Semester</label>
+                  <select
+                    value={semester}
+                    onChange={(e) => setSemester(e.target.value)}
+                    className="w-full h-10 px-3 bg-zinc-900 border border-white/10 rounded-lg text-sm text-white focus:outline-none"
+                  >
+                    <option value="">None / Not Applicable</option>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                      <option key={s} value={String(s)}>
+                        Semester {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Priority</label>
                   <select
@@ -537,9 +584,7 @@ export const Assignments: React.FC = () => {
                     <option value="URGENT">Urgent</option>
                   </select>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Status</label>
                   <select

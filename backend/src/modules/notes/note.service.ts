@@ -29,6 +29,7 @@ export class NoteService {
       isRichText?: boolean;
       folderId?: string | null;
       subjectId?: string | null;
+      semester?: string | null;
     }
   ): Promise<Note> {
     // 1. Validate parent folder ownership
@@ -61,6 +62,7 @@ export class NoteService {
       isFavorite?: boolean;
       folderId?: string | null;
       subjectId?: string | null;
+      semester?: string | null;
     },
     tags?: string[]
   ): Promise<Note> {

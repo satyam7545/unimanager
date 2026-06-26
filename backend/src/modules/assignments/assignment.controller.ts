@@ -10,13 +10,14 @@ export class AssignmentController {
       if (!req.user) {
         throw new BadRequestError('User session context missing.');
       }
-      const { subjectId, priority, status } = req.query;
+      const { subjectId, priority, status, semester } = req.query;
 
       const filters = {
         ...(subjectId && { subjectId: String(subjectId) }),
         ...(subjectId === 'null' && { subjectId: null }),
         ...(priority && { priority: String(priority) }),
         ...(status && { status: String(status) }),
+        ...(semester && { semester: String(semester) }),
       };
 
       const assignments = await this.service.getAllAssignments(req.user.userId, filters);

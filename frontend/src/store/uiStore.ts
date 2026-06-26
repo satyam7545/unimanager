@@ -5,10 +5,12 @@ interface UIState {
   sidebarOpen: boolean;
   activeSection: string;
   theme: 'dark' | 'light' | 'system';
+  selectedSemester: string;
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setActiveSection: (section: string) => void;
   setTheme: (theme: 'dark' | 'light' | 'system') => void;
+  setSelectedSemester: (semester: string) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -17,6 +19,7 @@ export const useUIStore = create<UIState>()(
       sidebarOpen: true,
       activeSection: 'Dashboard',
       theme: 'dark',
+      selectedSemester: 'all',
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setActiveSection: (section) => set({ activeSection: section }),
@@ -33,6 +36,7 @@ export const useUIStore = create<UIState>()(
 
         set({ theme });
       },
+      setSelectedSemester: (semester) => set({ selectedSemester: semester }),
     }),
     {
       name: 'unimanager-ui-store',
@@ -40,6 +44,7 @@ export const useUIStore = create<UIState>()(
         sidebarOpen: state.sidebarOpen,
         theme: state.theme,
         activeSection: state.activeSection,
+        selectedSemester: state.selectedSemester,
       }),
     }
   )

@@ -5,8 +5,8 @@ import { Subject } from '@prisma/client';
 export class SubjectService {
   private repository = new SubjectRepository();
 
-  async getAllSubjects(userId: string): Promise<Subject[]> {
-    return this.repository.findAllByUserId(userId);
+  async getAllSubjects(userId: string, filters: { semester?: string } = {}): Promise<Subject[]> {
+    return this.repository.findAllByUserId(userId, filters);
   }
 
   async getSubjectDetails(id: string, userId: string) {
@@ -17,11 +17,11 @@ export class SubjectService {
     return subject;
   }
 
-  async createSubject(userId: string, name: string, color: string): Promise<Subject> {
-    return this.repository.create(userId, name, color);
+  async createSubject(userId: string, name: string, color: string, semester?: string | null): Promise<Subject> {
+    return this.repository.create(userId, name, color, semester);
   }
 
-  async updateSubject(id: string, userId: string, name?: string, color?: string): Promise<Subject> {
+  async updateSubject(id: string, userId: string, name?: string, color?: string, semester?: string | null): Promise<Subject> {
     const subject = await this.repository.findById(id);
     if (!subject) {
       throw new NotFoundError('Subject not found.');
@@ -29,7 +29,7 @@ export class SubjectService {
     if (subject.userId !== userId) {
       throw new ForbiddenError('You do not have permission to update this subject.');
     }
-    return this.repository.update(id, name, color);
+    return this.repository.update(id, name, color, semester);
   }
 
   async deleteSubject(id: string, userId: string): Promise<void> {

@@ -5,11 +5,12 @@ export interface AssignmentFilters {
   subjectId?: string | null;
   priority?: string;
   status?: string;
+  semester?: string | null;
 }
 
 export class AssignmentRepository {
   async findAllByUserId(userId: string, filters: AssignmentFilters = {}): Promise<Assignment[]> {
-    const { subjectId, priority, status } = filters;
+    const { subjectId, priority, status, semester } = filters;
 
     return prisma.assignment.findMany({
       where: {
@@ -18,10 +19,16 @@ export class AssignmentRepository {
           subjectId !== undefined ? { subjectId } : {},
           priority ? { priority } : {},
           status ? { status } : {},
+          semester ? {
+            OR: [
+              { semester },
+              { subject: { semester } },
+            ],
+          } : {},
         ],
       },
       include: {
-        subject: { select: { id: true, name: true, color: true } },
+        subject: { select: { id: true, name: true, color: true, semester: true } },
         attachments: true,
       },
       orderBy: { deadline: 'asc' },
@@ -32,7 +39,7 @@ export class AssignmentRepository {
     return prisma.assignment.findUnique({
       where: { id },
       include: {
-        subject: { select: { id: true, name: true, color: true } },
+        subject: { select: { id: true, name: true, color: true, semester: true } },
         attachments: true,
       },
     });
@@ -47,6 +54,7 @@ export class AssignmentRepository {
       status: string;
       deadline: Date;
       subjectId?: string | null;
+      semester?: string | null;
     }
   ): Promise<Assignment> {
     return prisma.assignment.create({
@@ -58,9 +66,10 @@ export class AssignmentRepository {
         status: data.status,
         deadline: data.deadline,
         subjectId: data.subjectId || null,
+        semester: data.semester || null,
       },
       include: {
-        subject: { select: { id: true, name: true, color: true } },
+        subject: { select: { id: true, name: true, color: true, semester: true } },
       },
     });
   }
@@ -74,13 +83,14 @@ export class AssignmentRepository {
       status?: string;
       deadline?: Date;
       subjectId?: string | null;
+      semester?: string | null;
     }
   ): Promise<Assignment> {
     return prisma.assignment.update({
       where: { id },
       data,
       include: {
-        subject: { select: { id: true, name: true, color: true } },
+        subject: { select: { id: true, name: true, color: true, semester: true } },
       },
     });
   }

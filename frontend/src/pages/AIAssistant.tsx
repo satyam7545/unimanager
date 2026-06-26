@@ -31,6 +31,7 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 import { api } from '@/services/api';
+import { useAuthStore } from '@/features/auth/store/authStore';
 import { GlassCard } from '@/components/GlassCard';
 
 // Custom Markdown Renderer
@@ -142,6 +143,8 @@ export const AIAssistant: React.FC = () => {
   // AI Tools Results States
   const [toolLoading, setToolLoading] = useState(false);
   const [toolError, setToolError] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [streamingMessage, setStreamingMessage] = useState<string | null>(null);
   
   const [pdfSummaryResult, setPdfSummaryResult] = useState<string>('');
   const [ocrResult, setOcrResult] = useState<string>('');
@@ -274,7 +277,7 @@ export const AIAssistant: React.FC = () => {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loadingMessages]);
+  }, [messages, loadingMessages, streamingMessage]);
 
   // Mutations
   const createConvMutation = useMutation({
@@ -298,37 +301,6 @@ export const AIAssistant: React.FC = () => {
     },
   });
 
-  const sendMessageMutation = useMutation({
-    mutationFn: async ({ convId, content, includeRag }: { convId: string; content: string; includeRag: boolean }) => {
-      const res = await api.post(`/ai/conversations/${convId}/messages`, { content, includeRag });
-      return res.data.message;
-    },
-    onMutate: async ({ content }) => {
-      await queryClient.cancelQueries({ queryKey: ['aiMessages', activeConvId] });
-      const previousMessages = queryClient.getQueryData(['aiMessages', activeConvId]);
-
-      queryClient.setQueryData(['aiMessages', activeConvId], (old: any) => [
-        ...(old || []),
-        {
-          id: 'optimistic-' + Date.now(),
-          role: 'USER',
-          content,
-          createdAt: new Date().toISOString(),
-        },
-      ]);
-
-      return { previousMessages };
-    },
-    onError: (err: any, _variables, context) => {
-      queryClient.setQueryData(['aiMessages', activeConvId], context?.previousMessages);
-      const errorMsg = err.response?.data?.message || err.message || 'Failed to send message to the AI provider.';
-      alert(`AI completion failed: ${errorMsg}\n\nPlease check your AI Settings and ensure your local LLM server (like Ollama) is running.`);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['aiMessages', activeConvId] });
-      queryClient.invalidateQueries({ queryKey: ['aiConversations'] });
-    },
-  });
 
   const saveSettingsMutation = useMutation({
     mutationFn: async (updated: any) => api.post('/ai/settings', updated),
@@ -338,18 +310,104 @@ export const AIAssistant: React.FC = () => {
     },
   });
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!messageText.trim() || !activeConvId || sendMessageMutation.isPending) return;
+    if (!messageText.trim() || !activeConvId || isSending) return;
 
     const textToSend = messageText;
     setMessageText('');
+    setIsSending(true);
+    setStreamingMessage('');
 
-    sendMessageMutation.mutate({
-      convId: activeConvId,
-      content: textToSend,
-      includeRag,
-    });
+    // 1. Cancel active messages query to prevent race conditions
+    await queryClient.cancelQueries({ queryKey: ['aiMessages', activeConvId] });
+
+    // 2. Add USER message optimistically to the queryClient
+    const previousMessages = queryClient.getQueryData(['aiMessages', activeConvId]);
+    queryClient.setQueryData(['aiMessages', activeConvId], (old: any) => [
+      ...(old || []),
+      {
+        id: 'optimistic-user-' + Date.now(),
+        role: 'USER',
+        content: textToSend,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+
+    try {
+      // 3. Retrieve auth token to authorize the SSE connection
+      const { accessToken } = useAuthStore.getState();
+
+      // 4. Construct URL and send request
+      const response = await fetch(`http://localhost:5000/api/v1/ai/conversations/${activeConvId}/messages/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ content: textToSend, includeRag }),
+      });
+
+      if (!response.ok) {
+        let errText = '';
+        try {
+          const errData = await response.json();
+          errText = errData.message;
+        } catch {
+          errText = response.statusText;
+        }
+        throw new Error(errText || 'Failed to connect to AI streaming endpoint.');
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is empty.');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value || new Uint8Array(), { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          if (trimmed.startsWith('data: ')) {
+            const dataStr = trimmed.slice(6);
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.chunk) {
+                setStreamingMessage((prev) => (prev || '') + parsed.chunk);
+              } else if (parsed.error) {
+                throw new Error(parsed.error);
+              }
+            } catch (err) {
+              // Ignore line parse errors if it's incomplete/malformed
+            }
+          }
+        }
+      }
+
+      // 5. Success - invalidate query to fetch clean DB state and trigger sidebar update
+      queryClient.invalidateQueries({ queryKey: ['aiMessages', activeConvId] });
+      queryClient.invalidateQueries({ queryKey: ['aiConversations'] });
+    } catch (err: any) {
+      console.error(err);
+      // Revert optimistic update
+      queryClient.setQueryData(['aiMessages', activeConvId], previousMessages);
+      alert(`AI completion failed: ${err.message || 'Unknown streaming error.'}\n\nPlease check your AI Settings and ensure your local LLM server is running.`);
+    } finally {
+      setIsSending(false);
+      setStreamingMessage(null);
+    }
   };
 
   const handleSaveSettings = (e: React.FormEvent) => {
@@ -757,7 +815,7 @@ export const AIAssistant: React.FC = () => {
                         </div>
                       );
                     })}
-                    {sendMessageMutation.isPending && (
+                    {isSending && !streamingMessage && (
                       <div className="flex gap-3.5 justify-start select-none">
                         <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-xs shrink-0">
                           <Bot className="w-4 h-4 animate-pulse" />
@@ -766,6 +824,16 @@ export const AIAssistant: React.FC = () => {
                           <span className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
                           <span className="w-2 h-2 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
                           <span className="w-2 h-2 rounded-full bg-primary animate-bounce" />
+                        </div>
+                      </div>
+                    )}
+                    {streamingMessage && (
+                      <div className="flex gap-3.5 justify-start">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-xs shrink-0 select-none">
+                          <Bot className="w-4 h-4" />
+                        </div>
+                        <div className="p-4 rounded-2xl max-w-xl glass-panel border-white/5 rounded-tl-none text-zinc-300">
+                          <MarkdownText text={streamingMessage} />
                         </div>
                       </div>
                     )}
@@ -782,11 +850,11 @@ export const AIAssistant: React.FC = () => {
                     onChange={(e) => setMessageText(e.target.value)}
                     placeholder="Ask a question (e.g., 'Do I have any assignments due soon?')"
                     className="flex-1 h-11 px-4 rounded-xl text-sm text-white glass-input outline-none"
-                    disabled={sendMessageMutation.isPending}
+                    disabled={isSending}
                   />
                   <button
                     type="submit"
-                    disabled={!messageText.trim() || sendMessageMutation.isPending}
+                    disabled={!messageText.trim() || isSending}
                     className="h-11 w-11 rounded-xl bg-primary hover:bg-primary/90 text-white flex items-center justify-center transition-all disabled:opacity-50 active:scale-95 shrink-0"
                   >
                     <Send className="w-4 h-4" />

@@ -3,9 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Folder, FolderPlus, FilePlus2, Trash2, Search, Pin, Star, FileText } from 'lucide-react';
 import { api } from '@/services/api';
 import { NoteEditor } from '@/components/NoteEditor';
+import { useUIStore } from '@/store/uiStore';
 
 export const Notes: React.FC = () => {
   const queryClient = useQueryClient();
+  const { selectedSemester } = useUIStore();
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,12 +34,15 @@ export const Notes: React.FC = () => {
 
   // 2. Fetch notes
   const { data: notesData, isLoading: notesLoading } = useQuery({
-    queryKey: ['notes', searchQuery, activeFolderId],
+    queryKey: ['notes', searchQuery, activeFolderId, selectedSemester],
     queryFn: async () => {
       let url = '/notes?';
       if (searchQuery) url += `search=${encodeURIComponent(searchQuery)}&`;
       if (activeFolderId) {
         url += `folderId=${activeFolderId}&`;
+      }
+      if (selectedSemester && selectedSemester !== 'all') {
+        url += `semester=${selectedSemester}&`;
       }
       const res = await api.get(url);
       return res.data.notes;

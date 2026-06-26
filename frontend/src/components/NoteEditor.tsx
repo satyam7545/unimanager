@@ -15,6 +15,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
   const [isPinned, setIsPinned] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [subjectId, setSubjectId] = useState<string | null>(null);
+  const [semester, setSemester] = useState<string | null>(null);
   const [tagsInput, setTagsInput] = useState('');
   const [editTab, setEditTab] = useState<'write' | 'preview'>('write');
   const [syncState, setSyncState] = useState<'saved' | 'saving' | 'error' | 'idle'>('idle');
@@ -85,6 +86,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
       return api.put(`/notes/${noteId}`, payload);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['noteDetails', noteId] });
       setSyncState('saved');
       queryClient.invalidateQueries({ queryKey: ['notes'] });
     },
@@ -101,6 +103,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
       setIsPinned(noteResponse.isPinned || false);
       setIsFavorite(noteResponse.isFavorite || false);
       setSubjectId(noteResponse.subjectId || null);
+      setSemester(noteResponse.semester || null);
       
       const tagNames = noteResponse.tags ? noteResponse.tags.map((t: any) => t.name).join(', ') : '';
       setTagsInput(tagNames);
@@ -136,13 +139,14 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
         isPinned,
         isFavorite,
         subjectId: subjectId || null,
+        semester: semester || null,
         tags: tagList,
       });
       isDirtyRef.current = false;
     }, 1500);
 
     return () => clearTimeout(debounceTimer);
-  }, [title, content, isPinned, isFavorite, subjectId, tagsInput, noteId]);
+  }, [title, content, isPinned, isFavorite, subjectId, semester, tagsInput, noteId]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTitle(e.target.value);
@@ -354,7 +358,14 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
             <select
               value={subjectId || ''}
               onChange={(e) => {
-                setSubjectId(e.target.value || null);
+                const val = e.target.value || null;
+                setSubjectId(val);
+                if (val) {
+                  const selectedSub = subjects?.find((sub: any) => sub.id === val);
+                  if (selectedSub?.semester) {
+                    setSemester(selectedSub.semester);
+                  }
+                }
                 isDirtyRef.current = true;
               }}
               className="bg-zinc-900 border border-white/10 rounded px-2 py-1 text-xs text-zinc-300 font-semibold focus:outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer"
@@ -363,6 +374,26 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
               {subjects?.map((sub: any) => (
                 <option key={sub.id} value={sub.id}>
                   {sub.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Semester Dropdown */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] uppercase font-bold text-zinc-500">Semester:</span>
+            <select
+              value={semester || ''}
+              onChange={(e) => {
+                setSemester(e.target.value || null);
+                isDirtyRef.current = true;
+              }}
+              className="bg-zinc-900 border border-white/10 rounded px-2 py-1 text-xs text-zinc-300 font-semibold focus:outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer"
+            >
+              <option value="">None</option>
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                <option key={s} value={String(s)}>
+                  Semester {s}
                 </option>
               ))}
             </select>
