@@ -126,9 +126,11 @@ export class AIService {
     const recentHistory = rawHistory.slice(-10);
 
     // 4. Retrieve RAG context if enabled
-    let combinedSystemPrompt = systemPrompt;
-    if (includeRag && !isMock) {
-      const ragContext = await this.extractRagContext(userId, content);
+    const currentDate = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'long' });
+    let combinedSystemPrompt = `${systemPrompt}\n\n[CURRENT DATE & TIME: ${currentDate}]`;
+    let ragContext = '';
+    if (includeRag) {
+      ragContext = await this.extractRagContext(userId, content);
       if (ragContext) {
         combinedSystemPrompt += `\n\n[CONTEXT FROM THE USER'S WORKSPACE (Use this to answer questions accurately and specifically):]\n${ragContext}`;
       }
@@ -140,6 +142,9 @@ export class AIService {
       assistantReply = `[Sandbox/Mock Mode] Thank you for your question! Here is a mock response because you configured 'mock' as your API key, or no API credentials were found in your settings.
 
 Your message was: "${content}"
+
+Workspace Context:
+${ragContext || 'None'}
 
 If you want real AI completions, please configure a valid API key (for OpenAI, Gemini, Claude, or DeepSeek) or start a local LLM server (Ollama or LM Studio) in the AI Settings dashboard.`;
     } else {
@@ -201,9 +206,11 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
     const recentHistory = rawHistory.slice(-10);
 
     // 4. Retrieve RAG context if enabled
-    let combinedSystemPrompt = systemPrompt;
-    if (includeRag && !isMock) {
-      const ragContext = await this.extractRagContext(userId, content);
+    const currentDate = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'long' });
+    let combinedSystemPrompt = `${systemPrompt}\n\n[CURRENT DATE & TIME: ${currentDate}]`;
+    let ragContext = '';
+    if (includeRag) {
+      ragContext = await this.extractRagContext(userId, content);
       if (ragContext) {
         combinedSystemPrompt += `\n\n[CONTEXT FROM THE USER'S WORKSPACE (Use this to answer questions accurately and specifically):]\n${ragContext}`;
       }
@@ -220,6 +227,9 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
       const mockReply = `[Sandbox/Mock Mode] Thank you for your question! Here is a mock response because you configured 'mock' as your API key, or no API credentials were found in your settings.
 
 Your message was: "${content}"
+
+Workspace Context:
+${ragContext || 'None'}
 
 If you want real AI completions, please configure a valid API key (for OpenAI, Gemini, Claude, or DeepSeek) or start a local LLM server (Ollama or LM Studio) in the AI Settings dashboard.`;
       
@@ -255,8 +265,23 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
     const wantsTasks = lowerPrompt.includes('task') || lowerPrompt.includes('todo') || lowerPrompt.includes('planner') || lowerPrompt.includes('plan');
     const wantsNotes = lowerPrompt.includes('note') || lowerPrompt.includes('lecture') || lowerPrompt.includes('obsidian') || lowerPrompt.includes('study');
     const wantsProjects = lowerPrompt.includes('project') || lowerPrompt.includes('github') || lowerPrompt.includes('git') || lowerPrompt.includes('kanban');
+    const wantsEvents = lowerPrompt.includes('event') || lowerPrompt.includes('calendar') || lowerPrompt.includes('schedule') || lowerPrompt.includes('exam') || lowerPrompt.includes('class') || lowerPrompt.includes('session');
+    const wantsHabits = lowerPrompt.includes('habit') || lowerPrompt.includes('routine') || lowerPrompt.includes('streak');
 
     let contextStr = '';
+
+    // Fetch and format User's Course Subjects list
+    const subjects = await prisma.subject.findMany({
+      where: { userId },
+      select: { name: true, color: true, semester: true }
+    });
+
+    if (subjects.length > 0) {
+      contextStr += '\n--- YOUR COURSE SUBJECTS ---\n';
+      subjects.forEach(s => {
+        contextStr += `- Subject: ${s.name} (Semester: ${s.semester || 'General'})\n`;
+      });
+    }
 
     // Search Notes
     const notesToFetch = wantsNotes ? 5 : (keywords.length > 0 ? 3 : 0);
@@ -266,7 +291,8 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
           userId,
           OR: keywords.length > 0 ? [
             ...keywords.map(kw => ({ title: { contains: kw } })),
-            ...keywords.map(kw => ({ content: { contains: kw } }))
+            ...keywords.map(kw => ({ content: { contains: kw } })),
+            ...keywords.map(kw => ({ subject: { name: { contains: kw } } }))
           ] : undefined,
         },
         orderBy: { updatedAt: 'desc' },
@@ -278,7 +304,7 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
         contextStr += '\n--- RELATED NOTES ---\n';
         matchingNotes.forEach(n => {
           contextStr += `Note: ${n.title} (Subject: ${n.subject?.name || 'General'})\n`;
-          contextStr += `Content Preview: ${n.content.substring(0, 500)}${n.content.length > 500 ? '...' : ''}\n\n`;
+          contextStr += `Content: ${n.content.substring(0, 3000)}${n.content.length > 3000 ? '...' : ''}\n\n`;
         });
       }
     }
@@ -289,10 +315,11 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
       const matchingAssignments = await prisma.assignment.findMany({
         where: {
           userId,
-          status: wantsAssignments ? { not: 'COMPLETED' } : undefined,
+          status: wantsAssignments && keywords.length === 0 ? { not: 'COMPLETED' } : undefined,
           OR: keywords.length > 0 ? [
             ...keywords.map(kw => ({ title: { contains: kw } })),
-            ...keywords.map(kw => ({ description: { contains: kw } }))
+            ...keywords.map(kw => ({ description: { contains: kw } })),
+            ...keywords.map(kw => ({ subject: { name: { contains: kw } } }))
           ] : undefined,
         },
         orderBy: { deadline: 'asc' },
@@ -339,7 +366,7 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
       const matchingTasks = await prisma.task.findMany({
         where: {
           userId,
-          status: wantsTasks ? { not: 'DONE' } : undefined,
+          status: wantsTasks && keywords.length === 0 ? { not: 'DONE' } : undefined,
           OR: keywords.length > 0 ? keywords.map(kw => ({ title: { contains: kw } })) : undefined,
         },
         orderBy: { updatedAt: 'desc' },
@@ -351,6 +378,58 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
         matchingTasks.forEach(t => {
           const dateStr = t.date ? ` | Scheduled: ${t.date.toISOString().split('T')[0]}` : '';
           contextStr += `- [${t.status === 'DONE' ? 'x' : ' '}] ${t.title} (Status: ${t.status} | Priority: ${t.priority}${dateStr})\n`;
+        });
+      }
+    }
+
+    // Search Events / Calendar items
+    const eventsToFetch = wantsEvents ? 10 : (keywords.length > 0 ? 5 : 0);
+    if (eventsToFetch > 0) {
+      const matchingEvents = await prisma.event.findMany({
+        where: {
+          userId,
+          OR: keywords.length > 0 ? [
+            ...keywords.map(kw => ({ title: { contains: kw } })),
+            ...keywords.map(kw => ({ description: { contains: kw } })),
+            ...keywords.map(kw => ({ subject: { name: { contains: kw } } }))
+          ] : undefined,
+          startAt: wantsEvents && keywords.length === 0 ? { gte: new Date() } : undefined,
+        },
+        orderBy: { startAt: 'asc' },
+        take: eventsToFetch,
+        include: { subject: true },
+      });
+
+      if (matchingEvents.length > 0) {
+        contextStr += '\n--- RELATED CALENDAR EVENTS ---\n';
+        matchingEvents.forEach(e => {
+          contextStr += `- Event: ${e.title} | Start: ${e.startAt.toISOString()} | End: ${e.endAt.toISOString()}${e.isAllDay ? ' (All Day)' : ''} | Subject: ${e.subject?.name || 'General'}\n`;
+          if (e.description) contextStr += `  Description: ${e.description}\n`;
+        });
+      }
+    }
+
+    // Search Habits
+    const habitsToFetch = wantsHabits ? 10 : (keywords.length > 0 ? 3 : 0);
+    if (habitsToFetch > 0) {
+      const matchingHabits = await prisma.habit.findMany({
+        where: {
+          userId,
+          OR: keywords.length > 0 ? keywords.map(kw => ({ name: { contains: kw } })) : undefined,
+        },
+        include: {
+          logs: {
+            orderBy: { completedAt: 'desc' },
+            take: 7,
+          }
+        },
+        take: habitsToFetch,
+      });
+
+      if (matchingHabits.length > 0) {
+        contextStr += '\n--- RELATED HABITS ---\n';
+        matchingHabits.forEach(h => {
+          contextStr += `- Habit: ${h.name} | Frequency: ${h.frequency} | Target completions: ${h.target} | Recent completions (last 7 days): ${h.logs.length}\n`;
         });
       }
     }
@@ -380,7 +459,7 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
       'please', 'want', 'need', 'how', 'what', 'who', 'where', 'when', 'why'
     ]);
 
-    return Array.from(new Set(words.filter(w => w.length > 2 && !stopWords.has(w))));
+    return Array.from(new Set(words.filter(w => w.length >= 2 && !stopWords.has(w))));
   }
 
   // LLM Dispatcher

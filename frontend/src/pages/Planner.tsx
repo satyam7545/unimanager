@@ -3,9 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Plus, Trash2, Calendar, CheckCircle2, Circle } from 'lucide-react';
 import { api } from '@/services/api';
 import { GlassCard } from '@/components/GlassCard';
+import { useUIStore } from '@/store/uiStore';
 
 export const Planner: React.FC = () => {
   const queryClient = useQueryClient();
+  const { quickActionTrigger, setQuickActionTrigger } = useUIStore();
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -29,6 +31,18 @@ export const Planner: React.FC = () => {
       localStorage.removeItem('selectedTaskDate');
     }
   }, []);
+
+  React.useEffect(() => {
+    if (quickActionTrigger === 'task') {
+      setTimeout(() => {
+        const el = document.getElementById('morning-task-input');
+        if (el) {
+          (el as HTMLInputElement).focus();
+        }
+      }, 50);
+      setQuickActionTrigger(null);
+    }
+  }, [quickActionTrigger]);
 
   // Format active date to ISO query formats (YYYY-MM-DD)
   const getISOQueryDate = (d: Date) => {
@@ -201,6 +215,7 @@ export const Planner: React.FC = () => {
               <form onSubmit={(e) => handleCreateTask(e, slot)} className="flex items-center gap-2 shrink-0">
                 <input
                   type="text"
+                  id={slot === 'MORNING' ? 'morning-task-input' : undefined}
                   value={inputs[slot]}
                   onChange={(e) => handleInputChange(slot, e.target.value)}
                   placeholder="Quick add task..."

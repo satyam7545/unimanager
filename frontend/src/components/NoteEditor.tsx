@@ -120,10 +120,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
     if (!noteId) return;
     if (prevNoteIdRef.current !== noteId) return;
 
-    if (!isDirtyRef.current) {
-      isDirtyRef.current = true;
-      return;
-    }
+    if (!isDirtyRef.current) return;
 
     setSyncState('saving');
 

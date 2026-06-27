@@ -7,7 +7,7 @@ import { useUIStore } from '@/store/uiStore';
 
 export const Assignments: React.FC = () => {
   const queryClient = useQueryClient();
-  const { selectedSemester } = useUIStore();
+  const { selectedSemester, quickActionTrigger, setQuickActionTrigger } = useUIStore();
   const [viewMode, setViewMode] = useState<'list' | 'board'>('list');
   const [subjectFilter, setSubjectFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
@@ -93,7 +93,6 @@ export const Assignments: React.FC = () => {
     },
   });
 
-  // 0. Handle redirect deep linking
   React.useEffect(() => {
     const redirectedAssId = localStorage.getItem('selectedAssignmentId');
     if (redirectedAssId && assignments) {
@@ -104,6 +103,13 @@ export const Assignments: React.FC = () => {
       localStorage.removeItem('selectedAssignmentId');
     }
   }, [assignments]);
+
+  React.useEffect(() => {
+    if (quickActionTrigger === 'assignment') {
+      setShowAddModal(true);
+      setQuickActionTrigger(null);
+    }
+  }, [quickActionTrigger]);
 
   // 2. Fetch subjects for creation/filtering
   const { data: subjects } = useQuery({

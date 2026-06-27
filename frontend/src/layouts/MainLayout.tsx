@@ -25,7 +25,8 @@ import {
   Trash2,
   Clock,
   AlertTriangle,
-  Info
+  Info,
+  Plus
 } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/features/auth/store/authStore';
@@ -38,9 +39,62 @@ interface MainLayoutProps {
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
-  const { sidebarOpen, activeSection, toggleSidebar, setActiveSection, selectedSemester, setSelectedSemester } = useUIStore();
+  const { sidebarOpen, activeSection, toggleSidebar, setActiveSection, selectedSemester, setSelectedSemester, setQuickActionTrigger } = useUIStore();
   const { user } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [fabOpen, setFabOpen] = useState(false);
+
+  const quickActions = [
+    {
+      label: 'New Note',
+      icon: FileText,
+      color: 'bg-primary/20 hover:bg-primary/30 border-primary/30 text-primary-foreground',
+      onClick: () => {
+        setActiveSection('Notes');
+        setQuickActionTrigger('note');
+        setFabOpen(false);
+      }
+    },
+    {
+      label: 'New Task',
+      icon: ClipboardList,
+      color: 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/30 text-amber-400',
+      onClick: () => {
+        setActiveSection('Planner');
+        setQuickActionTrigger('task');
+        setFabOpen(false);
+      }
+    },
+    {
+      label: 'New Assignment',
+      icon: CalendarRange,
+      color: 'bg-sky-500/20 hover:bg-sky-500/30 border-sky-500/30 text-sky-400',
+      onClick: () => {
+        setActiveSection('Assignments');
+        setQuickActionTrigger('assignment');
+        setFabOpen(false);
+      }
+    },
+    {
+      label: 'Add Event',
+      icon: CalendarDays,
+      color: 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-500/30 text-emerald-400',
+      onClick: () => {
+        setActiveSection('Calendar');
+        setQuickActionTrigger('event');
+        setFabOpen(false);
+      }
+    },
+    {
+      label: 'Ask Assistant',
+      icon: Sparkles,
+      color: 'bg-violet-500/20 hover:bg-violet-500/30 border-violet-500/30 text-violet-400',
+      onClick: () => {
+        setActiveSection('AI Assistant');
+        setFabOpen(false);
+      }
+    }
+  ];
 
   // Initialize selectedSemester to user's semester if available on first load
   useEffect(() => {
@@ -549,10 +603,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           <AnimatePresence mode="wait">
             <motion.div
               key={activeSection}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12, ease: 'easeInOut' }}
               className="max-w-7xl mx-auto h-full"
             >
               {children}
@@ -885,6 +939,67 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </>
         )}
       </AnimatePresence>
+
+      {/* Floating Action Menu (Quick Hub) */}
+      <div className="fixed bottom-20 right-6 md:bottom-8 md:right-8 z-40 flex flex-col items-end">
+        {/* Expandable Hub */}
+        <AnimatePresence>
+          {fabOpen && (
+            <>
+              {/* Overlay backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.4 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setFabOpen(false)}
+                className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-30 pointer-events-auto"
+              />
+
+              {/* Menu Options Grid */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 15 }}
+                transition={{ type: 'spring', damping: 20, stiffness: 200 }}
+                className="mb-4 bg-zinc-950/90 border border-white/10 p-3 rounded-2xl shadow-2xl z-40 w-48 space-y-2 backdrop-blur-xl pointer-events-auto"
+              >
+                <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider px-2 py-1 select-none border-b border-white/5 pb-1.5 mb-1.5">
+                  Quick Actions
+                </div>
+                {quickActions.map((action) => {
+                  const ActionIcon = action.icon;
+                  return (
+                    <button
+                      key={action.label}
+                      onClick={action.onClick}
+                      className="w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-xs font-semibold text-zinc-300 hover:text-white hover:bg-white/[0.03] transition-all group"
+                    >
+                      <div className={`w-7 h-7 rounded-md border flex items-center justify-center p-1.5 transition-colors ${action.color}`}>
+                        <ActionIcon className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
+                      </div>
+                      <span>{action.label}</span>
+                    </button>
+                  );
+                })}
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* Master FAB Trigger Button */}
+        <motion.button
+          onClick={() => setFabOpen(!fabOpen)}
+          className={`w-12 h-12 rounded-full flex items-center justify-center text-white shadow-xl transition-all border z-40 active:scale-90 ${
+            fabOpen
+              ? 'bg-zinc-900 border-white/10 hover:bg-zinc-850 rotate-45'
+              : 'bg-primary hover:bg-primary/95 border-primary/20 shadow-primary/20'
+          }`}
+          whileHover={{ scale: 1.05 }}
+          layout
+        >
+          <Plus className="w-6 h-6 transition-transform duration-200" />
+        </motion.button>
+      </div>
     </div>
   );
 };

@@ -7,14 +7,14 @@ import { useUIStore } from '@/store/uiStore';
 
 export const Notes: React.FC = () => {
   const queryClient = useQueryClient();
-  const { selectedSemester } = useUIStore();
+  const { selectedSemester, quickActionTrigger, setQuickActionTrigger } = useUIStore();
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [folderName, setFolderName] = useState('');
 
-  // 0. Handle redirect deep linking
+  // 0. Handle redirect deep linking and quick action trigger
   React.useEffect(() => {
     const redirectedNoteId = localStorage.getItem('selectedNoteId');
     if (redirectedNoteId) {
@@ -22,6 +22,13 @@ export const Notes: React.FC = () => {
       localStorage.removeItem('selectedNoteId');
     }
   }, []);
+
+  React.useEffect(() => {
+    if (quickActionTrigger === 'note') {
+      handleCreateNote();
+      setQuickActionTrigger(null);
+    }
+  }, [quickActionTrigger]);
 
   // 1. Fetch folders
   const { data: foldersData } = useQuery({

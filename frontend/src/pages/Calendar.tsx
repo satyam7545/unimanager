@@ -7,7 +7,7 @@ import { useUIStore } from '@/store/uiStore';
 
 export const Calendar: React.FC = () => {
   const queryClient = useQueryClient();
-  const { selectedSemester } = useUIStore();
+  const { selectedSemester, quickActionTrigger, setQuickActionTrigger } = useUIStore();
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'agenda'>('month');
 
@@ -52,6 +52,20 @@ export const Calendar: React.FC = () => {
     },
   });
 
+  // Pre-process and index calendar events by date to optimize rendering from O(D * E) to O(D + E)
+  const eventsByDate = React.useMemo(() => {
+    if (!eventsData) return {};
+    const groups: Record<string, any[]> = {};
+    eventsData.forEach((ev: any) => {
+      const dateKey = new Date(ev.start).toISOString().slice(0, 10);
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(ev);
+    });
+    return groups;
+  }, [eventsData]);
+
   // 2. Fetch subjects for custom event creation
   const { data: subjects } = useQuery({
     queryKey: ['subjects'],
@@ -95,6 +109,23 @@ export const Calendar: React.FC = () => {
     setShowModal(false);
     setSelectedEvent(null);
   };
+
+  React.useEffect(() => {
+    if (quickActionTrigger === 'event') {
+      const now = new Date();
+      const formatLocalISO = (d: Date) => {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      };
+      setStartAt(formatLocalISO(now));
+      
+      const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+      setEndAt(formatLocalISO(oneHourLater));
+      
+      setShowModal(true);
+      setQuickActionTrigger(null);
+    }
+  }, [quickActionTrigger]);
 
   const handleShiftMonth = (direction: number) => {
     setCurrentDate((prev) => {
@@ -151,7 +182,7 @@ export const Calendar: React.FC = () => {
   };
 
   // --- Dynamic Calendar Matrix Math ---
-  const getMonthDaysMatrix = () => {
+  const daysMatrix = React.useMemo(() => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     
@@ -188,9 +219,7 @@ export const Calendar: React.FC = () => {
     }
 
     return matrix;
-  };
-
-  const daysMatrix = getMonthDaysMatrix();
+  }, [currentDate]);
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
@@ -272,11 +301,8 @@ export const Calendar: React.FC = () => {
             {daysMatrix.map(({ date, isCurrentMonth }, idx) => {
               const dateQueryKey = date.toISOString().slice(0, 10);
               
-              // Filter events landing on this date (dates must match ISO days)
-              const cellEvents = eventsData?.filter((ev: any) => {
-                const eventDay = new Date(ev.start).toISOString().slice(0, 10);
-                return eventDay === dateQueryKey;
-              }) || [];
+              // Fetch pre-grouped events for O(1) rendering lookup
+              const cellEvents = eventsByDate[dateQueryKey] || [];
 
               return (
                 <div
@@ -324,10 +350,7 @@ export const Calendar: React.FC = () => {
             startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + i);
             const dateStr = startOfWeek.toISOString().slice(0, 10);
             
-            const cellEvents = eventsData?.filter((ev: any) => {
-              const eventDay = new Date(ev.start).toISOString().slice(0, 10);
-              return eventDay === dateStr;
-            }) || [];
+            const cellEvents = eventsByDate[dateStr] || [];
 
             return (
               <div key={i} className="flex flex-col h-[55vh] space-y-3">

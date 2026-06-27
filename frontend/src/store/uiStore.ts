@@ -6,11 +6,13 @@ interface UIState {
   activeSection: string;
   theme: 'dark' | 'light' | 'system';
   selectedSemester: string;
+  quickActionTrigger: 'note' | 'task' | 'assignment' | 'event' | null;
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setActiveSection: (section: string) => void;
   setTheme: (theme: 'dark' | 'light' | 'system') => void;
   setSelectedSemester: (semester: string) => void;
+  setQuickActionTrigger: (trigger: 'note' | 'task' | 'assignment' | 'event' | null) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -20,6 +22,7 @@ export const useUIStore = create<UIState>()(
       activeSection: 'Dashboard',
       theme: 'dark',
       selectedSemester: 'all',
+      quickActionTrigger: null,
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setActiveSection: (section) => set({ activeSection: section }),
@@ -37,6 +40,7 @@ export const useUIStore = create<UIState>()(
         set({ theme });
       },
       setSelectedSemester: (semester) => set({ selectedSemester: semester }),
+      setQuickActionTrigger: (trigger) => set({ quickActionTrigger: trigger }),
     }),
     {
       name: 'unimanager-ui-store',
