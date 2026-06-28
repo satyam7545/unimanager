@@ -30,7 +30,7 @@ import {
   FileCheck,
   ArrowUpRight
 } from 'lucide-react';
-import { api } from '@/services/api';
+import { api, BASE_URL } from '@/services/api';
 import { useAuthStore } from '@/features/auth/store/authStore';
 import { GlassCard } from '@/components/GlassCard';
 
@@ -339,7 +339,7 @@ export const AIAssistant: React.FC = () => {
       const { accessToken } = useAuthStore.getState();
 
       // 4. Construct URL and send request
-      const response = await fetch(`http://localhost:5000/api/v1/ai/conversations/${activeConvId}/messages/stream`, {
+      const response = await fetch(`${BASE_URL}/ai/conversations/${activeConvId}/messages/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

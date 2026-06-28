@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, List, Kanban, Calendar, Clock, Trash2, Edit3, Filter, Paperclip, Download, RefreshCw } from 'lucide-react';
-import { api } from '@/services/api';
+import { api, API_HOST } from '@/services/api';
 import { GlassCard } from '@/components/GlassCard';
 import { useUIStore } from '@/store/uiStore';
 
@@ -369,7 +369,7 @@ export const Assignments: React.FC = () => {
                   {ass.attachments && ass.attachments.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {ass.attachments.map((att: any) => {
-                        const fileUrl = `http://localhost:5000${att.filePath}`;
+                        const fileUrl = `${API_HOST}${att.filePath}`;
                         return (
                           <a
                             key={att.id}
@@ -464,7 +464,7 @@ export const Assignments: React.FC = () => {
                       {ass.attachments && ass.attachments.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2.5">
                           {ass.attachments.map((att: any) => {
-                            const fileUrl = `http://localhost:5000${att.filePath}`;
+                            const fileUrl = `${API_HOST}${att.filePath}`;
                             return (
                               <a
                                 key={att.id}
@@ -640,7 +640,7 @@ export const Assignments: React.FC = () => {
                   ) : (
                     <div className="space-y-1.5 max-h-24 overflow-y-auto pr-1">
                       {editingAssignment.attachments.map((att: any) => {
-                        const fileUrl = `http://localhost:5000${att.filePath}`;
+                        const fileUrl = `${API_HOST}${att.filePath}`;
                         return (
                           <div key={att.id} className="flex items-center justify-between p-1.5 rounded bg-zinc-900/60 border border-white/5 text-xs">
                             <span className="truncate text-zinc-300 font-medium max-w-[200px]" title={att.fileName}>

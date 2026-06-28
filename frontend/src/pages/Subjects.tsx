@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, FolderOpen, Trash2, ArrowLeft, ExternalLink, Link, FileText, Calendar, AlertCircle, Paperclip, Edit3, X, Clock } from 'lucide-react';
-import { api } from '@/services/api';
+import { api, API_HOST } from '@/services/api';
 import { GlassCard } from '@/components/GlassCard';
 import { useUIStore } from '@/store/uiStore';
 
@@ -237,7 +237,7 @@ export const Subjects: React.FC = () => {
                     {note.attachments && note.attachments.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2.5 pt-2.5 border-t border-white/5">
                         {note.attachments.map((att: any) => {
-                          const fileUrl = `http://localhost:5000${att.filePath}`;
+                          const fileUrl = `${API_HOST}${att.filePath}`;
                           return (
                             <a
                               key={att.id}
@@ -288,7 +288,7 @@ export const Subjects: React.FC = () => {
                     {ass.attachments && ass.attachments.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2.5 pt-2.5 border-t border-white/5">
                         {ass.attachments.map((att: any) => {
-                          const fileUrl = `http://localhost:5000${att.filePath}`;
+                          const fileUrl = `${API_HOST}${att.filePath}`;
                           return (
                             <a
                               key={att.id}
@@ -540,7 +540,7 @@ export const Subjects: React.FC = () => {
                   <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">Attached Files</span>
                   <div className="flex flex-wrap gap-2">
                     {viewingNote.attachments.map((att: any) => {
-                      const fileUrl = `http://localhost:5000${att.filePath}`;
+                      const fileUrl = `${API_HOST}${att.filePath}`;
                       return (
                         <a
                           key={att.id}
@@ -659,7 +659,7 @@ export const Subjects: React.FC = () => {
                   <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">Attachments</span>
                   <div className="flex flex-wrap gap-2">
                     {viewingAssignment.attachments.map((att: any) => {
-                      const fileUrl = `http://localhost:5000${att.filePath}`;
+                      const fileUrl = `${API_HOST}${att.filePath}`;
                       return (
                         <a
                           key={att.id}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Pin, Star, CheckCircle, CloudLightning, RefreshCw, Eye, Edit3, Tag as TagIcon, Paperclip, Download, Plus, Trash2 } from 'lucide-react';
-import { api } from '@/services/api';
+import { api, API_HOST } from '@/services/api';
 
 interface NoteEditorProps {
   noteId: string | null;
@@ -453,7 +453,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
         ) : (
           <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
             {(noteResponse as any).attachments.map((att: any) => {
-              const fileUrl = `http://localhost:5000${att.filePath}`;
+              const fileUrl = `${API_HOST}${att.filePath}`;
               return (
                 <div key={att.id} className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg border border-white/5 bg-zinc-900/40 hover:bg-zinc-900/80 transition-all text-xs max-w-xs truncate group">
                   <span className="truncate text-zinc-300 font-medium" title={att.fileName}>{att.fileName}</span>
