@@ -19,25 +19,20 @@ export const GlassCard: React.FC<GlassCardProps> = ({
   return (
     <motion.div
       className={cn(
-        'glass-panel rounded-xl p-6 relative overflow-hidden transition-colors duration-200',
+        'glass-panel rounded-xl p-6 relative overflow-hidden',
         hoverEffect && 'glass-panel-hover',
         className
       )}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.15, ease: 'easeOut' }}
       whileHover={
         hoverEffect
           ? {
-              y: -4,
-              boxShadow: `0 12px 40px -4px rgba(0, 0, 0, 0.4), 0 0 20px 0 ${glowColor}`,
+              y: -2,
+              boxShadow: `0 8px 30px -4px rgba(0, 0, 0, 0.4), 0 0 16px 0 ${glowColor}`,
             }
           : undefined
       }
       {...props}
     >
-      {/* Translucent background overlay */}
-      <div className="absolute inset-0 bg-glass-gradient pointer-events-none -z-10" />
       {children}
     </motion.div>
   );

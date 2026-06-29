@@ -83,7 +83,7 @@ export const Analytics: React.FC = () => {
       {/* Header bar */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white font-serif">Academic Analytics</h2>
+          <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white">Academic Analytics</h2>
           <p className="text-sm text-zinc-400 mt-1">Visualize learning milestones, focus hour charts, and assignment counts.</p>
         </div>
         <div className="flex items-center gap-2 text-xs bg-white/5 border border-white/10 px-3.5 py-1.5 rounded-full backdrop-blur-md shrink-0">

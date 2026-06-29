@@ -17,9 +17,64 @@ import { useAuthStore } from '../features/auth/store/authStore';
 import { GlassCard } from '@/components/GlassCard';
 import { useUIStore } from '@/store/uiStore';
 
+// Static animation variants — defined outside component to prevent object recreation on each render
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.04 },
+  },
+};
+
+const item = {
+  hidden: { opacity: 0, y: 5 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+};
+
+// Placeholder empty days for when no study data exists
+const EMPTY_DAYS = [
+  { day: 'Mon', hrs: 0 },
+  { day: 'Tue', hrs: 0 },
+  { day: 'Wed', hrs: 0 },
+  { day: 'Thu', hrs: 0 },
+  { day: 'Fri', hrs: 0 },
+  { day: 'Sat', hrs: 0 },
+  { day: 'Sun', hrs: 0 },
+];
+
+// Extracted bar chart sub-component — prevents inline IIFE in JSX
+interface BarChartProps {
+  dailyStudyHours: { day: string; hrs: number }[];
+}
+
+const StudyBarChart: React.FC<BarChartProps> = ({ dailyStudyHours }) => {
+  const bars = dailyStudyHours.length === 0 ? EMPTY_DAYS : dailyStudyHours;
+  const maxHrs = dailyStudyHours.length === 0 ? 1 : Math.max(...dailyStudyHours.map((d) => d.hrs), 1);
+
+  return (
+    <div className="h-48 flex items-end justify-between gap-2.5 pt-4">
+      {bars.map((bar) => {
+        const heightPercent = `${Math.max(5, Math.round((bar.hrs / maxHrs) * 80))}%`;
+        return (
+          <div key={bar.day} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
+            <span className="text-[10px] text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              {bar.hrs}h
+            </span>
+            <div
+              style={{ height: heightPercent }}
+              className="w-full bg-gradient-to-t from-primary/60 to-primary rounded-t-sm transition-all duration-300 group-hover:brightness-110 shadow-lg shadow-primary/10"
+            />
+            <span className="text-xs text-zinc-500">{bar.day}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 export const Dashboard: React.FC = () => {
   const { user } = useAuthStore();
-  const { selectedSemester } = useUIStore();
+  const { selectedSemester, setActiveSection } = useUIStore();
 
   const { data: summary, isLoading, error } = useQuery({
     queryKey: ['dashboardSummary', selectedSemester],
@@ -32,19 +87,6 @@ export const Dashboard: React.FC = () => {
       return res.data;
     },
   });
-
-  const container = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: { staggerChildren: 0.04 },
-    },
-  };
-
-  const item = {
-    hidden: { opacity: 0, y: 5 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
-  };
 
   if (isLoading) {
     return (
@@ -173,7 +215,10 @@ export const Dashboard: React.FC = () => {
                 <h3 className="font-bold text-lg text-white">Today's Checklists</h3>
                 <p className="text-xs text-zinc-500 mt-0.5">Tasks scheduled or in progress</p>
               </div>
-              <button className="text-xs text-primary font-semibold hover:underline flex items-center gap-0.5">
+              <button
+                onClick={() => setActiveSection('Planner')}
+                className="text-xs text-primary font-semibold hover:underline flex items-center gap-0.5 transition-colors"
+              >
                 <span>View Planner</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
@@ -236,50 +281,8 @@ export const Dashboard: React.FC = () => {
               )}
             </div>
 
-            {/* Visual graph representation using divs */}
-            <div className="h-48 flex items-end justify-between gap-2.5 pt-4">
-              {dailyStudyHours.length === 0 ? (
-                [
-                  { day: 'Mon', hrs: 0 },
-                  { day: 'Tue', hrs: 0 },
-                  { day: 'Wed', hrs: 0 },
-                  { day: 'Thu', hrs: 0 },
-                  { day: 'Fri', hrs: 0 },
-                  { day: 'Sat', hrs: 0 },
-                  { day: 'Sun', hrs: 0 }
-                ].map((bar) => (
-                  <div key={bar.day} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                    <span className="text-[10px] text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                      {bar.hrs}h
-                    </span>
-                    <div
-                      style={{ height: '5%' }}
-                      className="w-full bg-gradient-to-t from-primary/60 to-primary rounded-t-sm transition-all duration-300 group-hover:brightness-110 shadow-lg shadow-primary/10"
-                    />
-                    <span className="text-xs text-zinc-500">{bar.day}</span>
-                  </div>
-                ))
-              ) : (
-                (() => {
-                  const maxHrs = Math.max(...dailyStudyHours.map((d: any) => d.hrs), 1);
-                  return dailyStudyHours.map((bar: any) => {
-                    const heightPercent = `${Math.max(5, Math.round((bar.hrs / maxHrs) * 80))}%`;
-                    return (
-                      <div key={bar.day} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
-                        <span className="text-[10px] text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                          {bar.hrs}h
-                        </span>
-                        <div
-                          style={{ height: heightPercent }}
-                          className="w-full bg-gradient-to-t from-primary/60 to-primary rounded-t-sm transition-all duration-300 group-hover:brightness-110 shadow-lg shadow-primary/10"
-                        />
-                        <span className="text-xs text-zinc-500">{bar.day}</span>
-                      </div>
-                    );
-                  });
-                })()
-              )}
-            </div>
+            {/* Bar chart sub-component */}
+            <StudyBarChart dailyStudyHours={dailyStudyHours} />
           </GlassCard>
         </div>
 

@@ -14,6 +14,9 @@ export const Projects: React.FC = () => {
   const [githubUrl, setGithubUrl] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Inline delete confirmation — replaces window.confirm()
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   // Deep-link redirect handler from search
   React.useEffect(() => {
     const redirectedProjId = localStorage.getItem('selectedProjectId');
@@ -72,9 +75,7 @@ export const Projects: React.FC = () => {
 
   const handleDeleteProject = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this project? All associated tasks will be deleted.')) {
-      deleteMutation.mutate(id);
-    }
+    setConfirmDeleteId(id);
   };
 
   if (selectedProjectId) {
@@ -250,6 +251,32 @@ export const Projects: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Delete Confirmation Modal */}
+      {confirmDeleteId && (
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm z-50 animate-fade-in-up"
+          onClick={() => setConfirmDeleteId(null)}
+        >
+          <div className="glass-panel rounded-xl p-6 w-full max-w-xs" onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm text-white font-semibold mb-1">Delete project?</p>
+            <p className="text-xs text-zinc-500 mb-5">All associated Kanban tasks will be permanently deleted.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="flex-1 h-9 rounded-lg border border-white/5 bg-white/[0.02] text-zinc-400 hover:text-white text-xs font-semibold transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { deleteMutation.mutate(confirmDeleteId); setConfirmDeleteId(null); }}
+                className="flex-1 h-9 rounded-lg bg-red-500/80 hover:bg-red-500 text-white text-xs font-bold transition-all"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

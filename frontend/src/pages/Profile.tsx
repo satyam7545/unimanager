@@ -84,7 +84,7 @@ export const Profile: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 select-none max-w-4xl mx-auto pb-12 select-text">
+    <div className="space-y-8 select-text max-w-4xl mx-auto pb-12">
       {/* Title Header */}
       <div>
         <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-white font-serif">Student Profile</h2>

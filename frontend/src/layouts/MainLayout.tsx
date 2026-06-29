@@ -33,7 +33,45 @@ import { useAuthStore } from '@/features/auth/store/authStore';
 import { authService } from '@/features/auth/services/auth.service';
 import { api } from '@/services/api';
 
+// Static nav items — defined outside component to prevent array recreation on every render
+const menuItems = [
+  { name: 'Dashboard', icon: LayoutDashboard },
+  { name: 'Subjects', icon: BookOpen },
+  { name: 'Notes', icon: FileText },
+  { name: 'Assignments', icon: ClipboardList },
+  { name: 'Planner', icon: CalendarRange },
+  { name: 'Calendar', icon: CalendarDays },
+  { name: 'Projects', icon: FolderGit2 },
+  { name: 'Habits', icon: Flame },
+  { name: 'Analytics', icon: BarChart3 },
+  { name: 'AI Assistant', icon: Sparkles },
+  { name: 'Profile', icon: User },
+  { name: 'Settings', icon: Settings },
+];
 
+// Pure time formatting helper — no dependency on component state
+const formatRelativeTime = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return `${diffDays}d ago`;
+};
+
+// Pure notification icon resolver
+const getNotificationIcon = (title: string) => {
+  const lower = title.toLowerCase();
+  if (lower.includes('assignment')) return <ClipboardList className="w-4 h-4 text-sky-400" />;
+  if (lower.includes('exam')) return <AlertTriangle className="w-4 h-4 text-amber-500 animate-pulse" />;
+  if (lower.includes('habit')) return <Flame className="w-4 h-4 text-orange-500 fill-orange-500/25" />;
+  return <Info className="w-4 h-4 text-primary" />;
+};
 interface MainLayoutProps {
   children: React.ReactNode;
 }
@@ -44,55 +82,37 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
 
+  // Quick actions reference setActiveSection — defined inside component
   const quickActions = [
     {
       label: 'New Note',
       icon: FileText,
       color: 'bg-primary/20 hover:bg-primary/30 border-primary/30 text-primary-foreground',
-      onClick: () => {
-        setActiveSection('Notes');
-        setQuickActionTrigger('note');
-        setFabOpen(false);
-      }
+      onClick: () => { setActiveSection('Notes'); setQuickActionTrigger('note'); setFabOpen(false); }
     },
     {
       label: 'New Task',
       icon: ClipboardList,
       color: 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/30 text-amber-400',
-      onClick: () => {
-        setActiveSection('Planner');
-        setQuickActionTrigger('task');
-        setFabOpen(false);
-      }
+      onClick: () => { setActiveSection('Planner'); setQuickActionTrigger('task'); setFabOpen(false); }
     },
     {
       label: 'New Assignment',
       icon: CalendarRange,
       color: 'bg-sky-500/20 hover:bg-sky-500/30 border-sky-500/30 text-sky-400',
-      onClick: () => {
-        setActiveSection('Assignments');
-        setQuickActionTrigger('assignment');
-        setFabOpen(false);
-      }
+      onClick: () => { setActiveSection('Assignments'); setQuickActionTrigger('assignment'); setFabOpen(false); }
     },
     {
       label: 'Add Event',
       icon: CalendarDays,
       color: 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-500/30 text-emerald-400',
-      onClick: () => {
-        setActiveSection('Calendar');
-        setQuickActionTrigger('event');
-        setFabOpen(false);
-      }
+      onClick: () => { setActiveSection('Calendar'); setQuickActionTrigger('event'); setFabOpen(false); }
     },
     {
       label: 'Ask Assistant',
       icon: Sparkles,
       color: 'bg-violet-500/20 hover:bg-violet-500/30 border-violet-500/30 text-violet-400',
-      onClick: () => {
-        setActiveSection('AI Assistant');
-        setFabOpen(false);
-      }
+      onClick: () => { setActiveSection('AI Assistant'); setFabOpen(false); }
     }
   ];
 
@@ -119,17 +139,30 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Handle Ctrl+K search palette hotkey
+  // Handle keyboard shortcuts: Ctrl+K for search, Escape to close, [ to toggle sidebar
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+K — open/close search palette
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         setSearchOpen((prev) => !prev);
+        return;
+      }
+      // Escape — close search, FAB, or notifications
+      if (e.key === 'Escape') {
+        if (searchOpen) { setSearchOpen(false); setSearchQuery(''); }
+        if (fabOpen) setFabOpen(false);
+        return;
+      }
+      // [ key — toggle sidebar (only when not focused on an input)
+      const tag = (e.target as HTMLElement).tagName;
+      if (e.key === '[' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+        toggleSidebar();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [searchOpen, fabOpen, toggleSidebar]);
 
   const { data: searchResults, isLoading: searchLoading } = useQuery({
     queryKey: ['globalSearch', debouncedQuery],
@@ -256,49 +289,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     return () => document.removeEventListener('click', handleClose);
   }, [notificationsOpen]);
 
-  const formatRelativeTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
-  };
-
-  const getNotificationIcon = (title: string) => {
-    const lower = title.toLowerCase();
-    if (lower.includes('assignment')) {
-      return <ClipboardList className="w-4 h-4 text-sky-400" />;
-    }
-    if (lower.includes('exam')) {
-      return <AlertTriangle className="w-4 h-4 text-amber-500 animate-pulse" />;
-    }
-    if (lower.includes('habit')) {
-      return <Flame className="w-4 h-4 text-orange-500 fill-orange-500/25" />;
-    }
-    return <Info className="w-4 h-4 text-primary" />;
-  };
-
-
-  const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard },
-    { name: 'Subjects', icon: BookOpen },
-    { name: 'Notes', icon: FileText },
-    { name: 'Assignments', icon: ClipboardList },
-    { name: 'Planner', icon: CalendarRange },
-    { name: 'Calendar', icon: CalendarDays },
-    { name: 'Projects', icon: FolderGit2 },
-    { name: 'Habits', icon: Flame },
-    { name: 'Analytics', icon: BarChart3 },
-    { name: 'AI Assistant', icon: Sparkles },
-    { name: 'Profile', icon: User },
-    { name: 'Settings', icon: Settings },
-  ];
 
   const handleLogout = async () => {
     await authService.logout();

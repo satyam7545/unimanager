@@ -14,6 +14,10 @@ export const Notes: React.FC = () => {
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [folderName, setFolderName] = useState('');
 
+  // Inline delete confirmations — replaces window.confirm()
+  const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState<string | null>(null);
+  const [confirmDeleteFolderId, setConfirmDeleteFolderId] = useState<string | null>(null);
+
   // 0. Handle redirect deep linking and quick action trigger
   React.useEffect(() => {
     const redirectedNoteId = localStorage.getItem('selectedNoteId');
@@ -124,16 +128,12 @@ export const Notes: React.FC = () => {
 
   const handleDeleteFolder = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('Delete this folder? Notes inside will not be deleted but moved to Unsorted.')) {
-      deleteFolderMutation.mutate(id);
-    }
+    setConfirmDeleteFolderId(id);
   };
 
   const handleDeleteNote = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this note?')) {
-      deleteNoteMutation.mutate(id);
-    }
+    setConfirmDeleteNoteId(id);
   };
 
   return (
@@ -215,6 +215,25 @@ export const Notes: React.FC = () => {
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
+                  {confirmDeleteFolderId === folder.id && (
+                    <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm z-50 animate-fade-in-up"
+                      onClick={() => setConfirmDeleteFolderId(null)}>
+                      <div className="glass-panel rounded-xl p-5 w-full max-w-xs" onClick={(e) => e.stopPropagation()}>
+                        <p className="text-sm text-zinc-300 font-semibold mb-1">Delete folder?</p>
+                        <p className="text-xs text-zinc-500 mb-4">Notes inside will be moved to Unsorted.</p>
+                        <div className="flex gap-2">
+                          <button onClick={() => setConfirmDeleteFolderId(null)}
+                            className="flex-1 h-8 rounded-lg border border-white/5 bg-white/[0.02] text-zinc-400 hover:text-white text-xs font-semibold transition-all">
+                            Cancel
+                          </button>
+                          <button onClick={() => { deleteFolderMutation.mutate(folder.id); setConfirmDeleteFolderId(null); }}
+                            className="flex-1 h-8 rounded-lg bg-red-500/80 hover:bg-red-500 text-white text-xs font-bold transition-all">
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -261,6 +280,25 @@ export const Notes: React.FC = () => {
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
+                      {confirmDeleteNoteId === note.id && (
+                        <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm z-50 animate-fade-in-up"
+                          onClick={() => setConfirmDeleteNoteId(null)}>
+                          <div className="glass-panel rounded-xl p-5 w-full max-w-xs" onClick={(e) => e.stopPropagation()}>
+                            <p className="text-sm text-zinc-300 font-semibold mb-1">Delete note?</p>
+                            <p className="text-xs text-zinc-500 mb-4">This action cannot be undone.</p>
+                            <div className="flex gap-2">
+                              <button onClick={() => setConfirmDeleteNoteId(null)}
+                                className="flex-1 h-8 rounded-lg border border-white/5 bg-white/[0.02] text-zinc-400 hover:text-white text-xs font-semibold transition-all">
+                                Cancel
+                              </button>
+                              <button onClick={() => { deleteNoteMutation.mutate(note.id); setConfirmDeleteNoteId(null); }}
+                                className="flex-1 h-8 rounded-lg bg-red-500/80 hover:bg-red-500 text-white text-xs font-bold transition-all">
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

@@ -4,6 +4,17 @@ import { Plus, Flame, Trash2, CheckCircle2, Circle, AlertCircle, Dumbbell, Code2
 import { api } from '@/services/api';
 import { GlassCard } from '@/components/GlassCard';
 
+// Single source of truth for icon metadata — eliminates the two parallel switch statements
+const ICON_REGISTRY: Record<string, { Component: React.ElementType; colorClass: string; label: string }> = {
+  Flame:   { Component: Flame,    colorClass: 'text-orange-500 bg-orange-500/10 border-orange-500/20', label: 'Study/Focus' },
+  Code2:   { Component: Code2,    colorClass: 'text-blue-500 bg-blue-500/10 border-blue-500/20',     label: 'Coding/Dev' },
+  Dumbbell:{ Component: Dumbbell, colorClass: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20', label: 'Workout/Gym' },
+  Moon:    { Component: Moon,     colorClass: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20', label: 'Sleep/Rest' },
+  Droplet: { Component: Droplet,  colorClass: 'text-cyan-500 bg-cyan-500/10 border-cyan-500/20',     label: 'Water/Hydrate' },
+};
+
+const ICON_OPTIONS = Object.entries(ICON_REGISTRY).map(([name, meta]) => ({ name, ...meta }));
+
 export const Habits: React.FC = () => {
   const queryClient = useQueryClient();
   const [showAddModal, setShowAddModal] = useState(false);
@@ -12,13 +23,8 @@ export const Habits: React.FC = () => {
   const [target, setTarget] = useState(1);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const iconOptions = [
-    { name: 'Flame', label: 'Study/Focus', icon: Flame, color: 'text-orange-400' },
-    { name: 'Code2', label: 'Coding/Dev', icon: Code2, color: 'text-blue-400' },
-    { name: 'Dumbbell', label: 'Workout/Gym', icon: Dumbbell, color: 'text-emerald-400' },
-    { name: 'Moon', label: 'Sleep/Rest', icon: Moon, color: 'text-indigo-400' },
-    { name: 'Droplet', label: 'Water/Hydrate', icon: Droplet, color: 'text-cyan-400' },
-  ];
+  // Inline delete confirmation state — no more window.confirm()
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // 1. Fetch habits
   const { data: habits, isLoading } = useQuery({
@@ -54,6 +60,7 @@ export const Habits: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['habits'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+      setConfirmDeleteId(null);
     },
   });
 
@@ -68,54 +75,7 @@ export const Habits: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-
-    createMutation.mutate({
-      name,
-      icon,
-      frequency: 'DAILY',
-      target,
-    });
-  };
-
-  const handleToggleHabit = (id: string) => {
-    toggleMutation.mutate(id);
-  };
-
-  const handleDeleteHabit = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this habit? Historical logs will be removed.')) {
-      deleteMutation.mutate(id);
-    }
-  };
-
-  const getIconComponent = (name: string) => {
-    switch (name) {
-      case 'Code2':
-        return Code2;
-      case 'Dumbbell':
-        return Dumbbell;
-      case 'Moon':
-        return Moon;
-      case 'Droplet':
-        return Droplet;
-      default:
-        return Flame;
-    }
-  };
-
-  const getIconColor = (name: string) => {
-    switch (name) {
-      case 'Code2':
-        return 'text-blue-500 bg-blue-500/10 border-blue-500/20';
-      case 'Dumbbell':
-        return 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20';
-      case 'Moon':
-        return 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20';
-      case 'Droplet':
-        return 'text-cyan-500 bg-cyan-500/10 border-cyan-500/20';
-      default:
-        return 'text-orange-500 bg-orange-500/10 border-orange-500/20';
-    }
+    createMutation.mutate({ name, icon, frequency: 'DAILY', target });
   };
 
   return (
@@ -152,22 +112,23 @@ export const Habits: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {habits?.map((h: any) => {
-            const Icon = getIconComponent(h.icon);
+            const iconMeta = ICON_REGISTRY[h.icon] || ICON_REGISTRY['Flame'];
+            const Icon = iconMeta.Component;
             const isCompleted = h.isCompletedToday;
-            const cardGlow = h.isCompletedToday ? 'hover:shadow-primary/5' : 'hover:shadow-white/5';
+            const isPendingDelete = confirmDeleteId === h.id;
 
             return (
               <GlassCard
                 key={h.id}
                 hoverEffect={true}
-                className={`border-white/5 flex items-center justify-between gap-4 !p-4 cursor-pointer group ${cardGlow}`}
-                onClick={() => handleToggleHabit(h.id)}
+                className={`border-white/5 flex items-center justify-between gap-4 !p-4 cursor-pointer group`}
+                onClick={() => !isPendingDelete && toggleMutation.mutate(h.id)}
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className={`w-11 h-11 rounded-xl border flex items-center justify-center shrink-0 ${getIconColor(h.icon)}`}>
-                    <Icon className="w-5.5 h-5.5" />
+                  <div className={`w-11 h-11 rounded-xl border flex items-center justify-center shrink-0 ${iconMeta.colorClass}`}>
+                    <Icon className="w-5 h-5" />
                   </div>
-                  
+
                   <div className="min-w-0">
                     <h4 className={`text-sm font-bold truncate block ${isCompleted ? 'text-zinc-500 line-through' : 'text-white'}`}>
                       {h.name}
@@ -182,27 +143,49 @@ export const Habits: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleToggleHabit(h.id);
-                    }}
-                    className="text-zinc-500 hover:text-white transition-colors"
-                  >
-                    {isCompleted ? (
-                      <CheckCircle2 className="w-6 h-6 text-primary fill-primary/10" />
-                    ) : (
-                      <Circle className="w-6 h-6 text-zinc-700 hover:border-zinc-500" />
-                    )}
-                  </button>
+                  {/* Toggle complete button */}
+                  {!isPendingDelete && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleMutation.mutate(h.id);
+                      }}
+                      className="text-zinc-500 hover:text-white transition-colors"
+                    >
+                      {isCompleted ? (
+                        <CheckCircle2 className="w-6 h-6 text-primary fill-primary/10" />
+                      ) : (
+                        <Circle className="w-6 h-6 text-zinc-700 hover:border-zinc-500" />
+                      )}
+                    </button>
+                  )}
 
-                  <button
-                    onClick={(e) => handleDeleteHabit(h.id, e)}
-                    className="p-1 text-zinc-800 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity rounded"
-                    title="Delete target"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {/* Inline delete confirmation */}
+                  {isPendingDelete ? (
+                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <span className="text-[10px] text-zinc-400 font-semibold whitespace-nowrap">Delete?</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(h.id); }}
+                        className="px-1.5 py-0.5 text-[10px] rounded bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 font-bold transition-colors"
+                      >
+                        Yes
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
+                        className="px-1.5 py-0.5 text-[10px] rounded bg-white/5 border border-white/10 text-zinc-400 hover:text-white font-bold transition-colors"
+                      >
+                        No
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(h.id); }}
+                      className="p-1 text-zinc-800 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity rounded"
+                      title="Delete target"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </GlassCard>
             );
@@ -233,14 +216,27 @@ export const Habits: React.FC = () => {
                   placeholder="e.g., Code for 1 hour"
                   className="w-full h-10 px-3 rounded-lg text-sm text-white glass-input"
                   required
+                  autoFocus
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Daily Target Count</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={target}
+                  onChange={(e) => setTarget(Number(e.target.value))}
+                  className="w-full h-10 px-3 rounded-lg text-sm text-white glass-input"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Icon Scope</label>
                 <div className="grid grid-cols-5 gap-2">
-                  {iconOptions.map((opt) => {
-                    const OptIcon = opt.icon;
+                  {ICON_OPTIONS.map((opt) => {
+                    const OptIcon = opt.Component;
                     const isSelected = icon === opt.name;
                     return (
                       <button
@@ -254,7 +250,7 @@ export const Habits: React.FC = () => {
                         }`}
                         title={opt.label}
                       >
-                        <OptIcon className="w-5.5 h-5.5" />
+                        <OptIcon className="w-5 h-5" />
                       </button>
                     );
                   })}

@@ -5,6 +5,13 @@ import { api } from '@/services/api';
 import { GlassCard } from '@/components/GlassCard';
 import { useUIStore } from '@/store/uiStore';
 
+// Slot display metadata — emoji + readable label
+const SLOT_META: Record<string, { emoji: string; label: string }> = {
+  MORNING:   { emoji: '🌅', label: 'Morning' },
+  AFTERNOON: { emoji: '☀️', label: 'Afternoon' },
+  NIGHT:     { emoji: '🌙', label: 'Night' },
+};
+
 export const Planner: React.FC = () => {
   const queryClient = useQueryClient();
   const { quickActionTrigger, setQuickActionTrigger } = useUIStore();
@@ -20,6 +27,9 @@ export const Planner: React.FC = () => {
     AFTERNOON: '',
     NIGHT: '',
   });
+
+  // Inline delete confirmation — replaces window.confirm()
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Deep-link redirect handler from search
   React.useEffect(() => {
@@ -132,9 +142,13 @@ export const Planner: React.FC = () => {
   };
 
   const handleDeleteTask = (id: string) => {
-    if (window.confirm('Delete this task?')) {
-      deleteTaskMutation.mutate(id);
-    }
+    setConfirmDeleteId(id);
+  };
+
+  const handleConfirmDelete = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    deleteTaskMutation.mutate(id);
+    setConfirmDeleteId(null);
   };
 
   // Completion stats calculations
@@ -200,14 +214,15 @@ export const Planner: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {(['MORNING', 'AFTERNOON', 'NIGHT'] as const).map((slot) => {
           const list = tasks?.filter((t: any) => t.timeSlot === slot) || [];
-          const slotTitle = slot.charAt(0) + slot.slice(1).toLowerCase();
           const slotGlow = slot === 'MORNING' ? 'hover:shadow-amber-500/5' : slot === 'AFTERNOON' ? 'hover:shadow-blue-500/5' : 'hover:shadow-violet-500/5';
+
+          const slotMeta = SLOT_META[slot];
 
           return (
             <div key={slot} className="flex flex-col h-[55vh] space-y-4">
               {/* Column title */}
               <div className="flex items-center justify-between border-b border-white/5 pb-2 shrink-0">
-                <span className="font-bold text-sm text-zinc-300 uppercase tracking-wider">{slotTitle} Slot</span>
+                <span className="font-bold text-sm text-zinc-300 tracking-wide">{slotMeta.emoji} {slotMeta.label}</span>
                 <span className="text-xs bg-white/5 px-2 py-0.5 rounded-full text-zinc-400 font-semibold">{list.length}</span>
               </div>
 
@@ -266,13 +281,30 @@ export const Planner: React.FC = () => {
                           </span>
                         </div>
 
-                        <button
-                          onClick={() => handleDeleteTask(task.id)}
-                          className="p-1 text-zinc-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity rounded shrink-0"
-                          title="Delete task"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {confirmDeleteId === task.id ? (
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={(e) => handleConfirmDelete(task.id, e)}
+                              className="px-1.5 py-0.5 text-[9px] rounded bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 font-bold transition-colors"
+                            >
+                              Yes
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
+                              className="px-1.5 py-0.5 text-[9px] rounded bg-white/5 border border-white/10 text-zinc-400 hover:text-white font-bold transition-colors"
+                            >
+                              No
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleDeleteTask(task.id)}
+                            className="p-1 text-zinc-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity rounded shrink-0"
+                            title="Delete task"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </GlassCard>
                     );
                   })
