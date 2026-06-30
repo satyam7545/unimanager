@@ -28,7 +28,8 @@ import {
   CheckCircle2,
   Circle,
   FileCheck,
-  ArrowUpRight
+  ArrowUpRight,
+  PanelLeft
 } from 'lucide-react';
 import { api, BASE_URL } from '@/services/api';
 import { useAuthStore } from '@/features/auth/store/authStore';
@@ -123,6 +124,10 @@ export const AIAssistant: React.FC = () => {
   const [activeTool, setActiveTool] = useState<string | null>(null);
 
   // Chat States
+  const [confirmDeleteConvId, setConfirmDeleteConvId] = useState<string | null>(null);
+
+  // Mobile: show sidebar OR main panel (not both at once)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState('');
   const [includeRag, setIncludeRag] = useState(true);
@@ -613,10 +618,12 @@ export const AIAssistant: React.FC = () => {
   ];
 
   return (
-    <div className="h-[calc(100vh-10rem)] flex gap-6 select-none overflow-hidden relative">
+    <div className="h-[calc(100vh-10rem)] flex gap-0 md:gap-6 select-none overflow-hidden relative">
       
-      {/* 1. Sidebar Panel (Switches Threads vs Tools) */}
-      <aside className="w-64 border border-white/5 bg-black/30 backdrop-blur-xl rounded-2xl flex flex-col overflow-hidden shrink-0">
+      {/* 1. Sidebar Panel — hidden on mobile unless mobileSidebarOpen */}
+      <aside className={`${
+        mobileSidebarOpen ? 'flex fixed inset-y-0 left-0 z-50 pt-4 pb-4 pl-4' : 'hidden md:flex'
+      } w-72 md:w-64 border border-white/5 bg-black/30 backdrop-blur-xl rounded-2xl flex-col overflow-hidden shrink-0 transition-all`}>
         
         {/* Navigation Tabs Header */}
         <div className="grid grid-cols-2 border-b border-white/5 bg-black/20 p-1 shrink-0 text-center text-xs font-bold font-sans">
@@ -640,6 +647,15 @@ export const AIAssistant: React.FC = () => {
             Study Tools
           </button>
         </div>
+
+        {/* Mobile close sidebar button */}
+        <button
+          onClick={() => setMobileSidebarOpen(false)}
+          className="md:hidden absolute top-3 right-3 p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-white/5 transition-colors"
+          aria-label="Close sidebar"
+        >
+          <X className="w-4 h-4" />
+        </button>
 
         {/* Dynamic Sidebar Content */}
         <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
@@ -691,17 +707,29 @@ export const AIAssistant: React.FC = () => {
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (window.confirm('Clear message history?')) {
-                            deleteConvMutation.mutate(c.id);
-                          }
-                        }}
-                        className="p-1 rounded text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                      {confirmDeleteConvId === c.id ? (
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteConvMutation.mutate(c.id); setConfirmDeleteConvId(null); }}
+                            className="px-1.5 py-0.5 text-[9px] rounded bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 font-bold transition-colors"
+                          >
+                            Yes
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteConvId(null); }}
+                            className="px-1.5 py-0.5 text-[9px] rounded bg-white/5 border border-white/10 text-zinc-400 hover:text-white font-bold transition-colors"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteConvId(c.id); }}
+                          className="p-1 rounded text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
                   );
                 })
@@ -749,14 +777,31 @@ export const AIAssistant: React.FC = () => {
         </div>
       </aside>
 
+      {/* Mobile sidebar backdrop */}
+      {mobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40 md:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+
       {/* 2. Main Workspace Panel */}
       <main className="flex-1 border border-white/5 bg-black/10 rounded-2xl flex flex-col overflow-hidden relative">
+
+        {/* Mobile sidebar toggle button — top-left of main panel */}
+        <button
+          onClick={() => setMobileSidebarOpen(true)}
+          className="md:hidden absolute top-3 left-3 z-10 p-2 rounded-xl border border-white/10 bg-black/30 backdrop-blur-md text-zinc-400 hover:text-white transition-colors"
+          aria-label="Open sidebar"
+        >
+          <PanelLeft className="w-4 h-4" />
+        </button>
         
         {/* --- CHAT VIEW CONTAINER --- */}
         {activeTab === 'chat' && (
           activeConvId ? (
             <>
-              <header className="h-14 border-b border-white/5 px-6 flex items-center justify-between shrink-0 bg-black/20">
+              <header className="h-14 border-b border-white/5 pl-12 md:pl-6 pr-4 md:pr-6 flex items-center justify-between shrink-0 bg-black/20">
                 <div className="flex items-center gap-3">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow shadow-emerald-500 animate-pulse" />
                   <div>
@@ -804,7 +849,7 @@ export const AIAssistant: React.FC = () => {
                               <Bot className="w-4 h-4" />
                             </div>
                           )}
-                          <div className={`p-4 rounded-2xl max-w-xl ${isAI ? 'glass-panel border-white/5 rounded-tl-none text-zinc-300' : 'bg-primary text-white rounded-tr-none font-medium'}`}>
+                          <div className={`p-3 md:p-4 rounded-2xl max-w-[85vw] md:max-w-xl ${isAI ? 'glass-panel border-white/5 rounded-tl-none text-zinc-300' : 'bg-primary text-white rounded-tr-none font-medium'}`}>
                             {isAI ? <MarkdownText text={m.content} /> : <p className="text-sm whitespace-pre-wrap select-text leading-relaxed">{m.content}</p>}
                           </div>
                           {!isAI && (
@@ -842,7 +887,7 @@ export const AIAssistant: React.FC = () => {
                 )}
               </div>
 
-              <footer className="p-4 border-t border-white/5 bg-black/10 shrink-0">
+              <footer className="p-3 md:p-4 border-t border-white/5 bg-black/10 shrink-0">
                 <form onSubmit={handleSendMessage} className="flex gap-3">
                   <input
                     type="text"

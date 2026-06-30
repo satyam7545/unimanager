@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Folder, FolderPlus, FilePlus2, Trash2, Search, Pin, Star, FileText } from 'lucide-react';
+import { Folder, FolderPlus, FilePlus2, Trash2, Search, Pin, Star, FileText, ChevronLeft } from 'lucide-react';
 import { api } from '@/services/api';
 import { NoteEditor } from '@/components/NoteEditor';
 import { useUIStore } from '@/store/uiStore';
@@ -17,6 +17,9 @@ export const Notes: React.FC = () => {
   // Inline delete confirmations — replaces window.confirm()
   const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState<string | null>(null);
   const [confirmDeleteFolderId, setConfirmDeleteFolderId] = useState<string | null>(null);
+
+  // Mobile: show sidebar OR editor (not both at once on small screens)
+  const [mobilePanelView, setMobilePanelView] = useState<'sidebar' | 'editor'>('sidebar');
 
   // 0. Handle redirect deep linking and quick action trigger
   React.useEffect(() => {
@@ -137,9 +140,11 @@ export const Notes: React.FC = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-8.5rem)] flex gap-6 select-none relative">
+    <div className="h-[calc(100vh-8.5rem)] flex gap-0 md:gap-6 select-none relative overflow-hidden">
       {/* 1. Left Explorer Sidebar panel */}
-      <div className="w-80 shrink-0 flex flex-col border border-white/5 bg-zinc-950/20 backdrop-blur-md rounded-2xl overflow-hidden p-4 space-y-4">
+      <div className={`${
+        mobilePanelView === 'editor' ? 'hidden md:flex' : 'flex'
+      } md:flex w-full md:w-80 shrink-0 flex-col border border-white/5 bg-zinc-950/20 backdrop-blur-md rounded-2xl overflow-hidden p-4 space-y-4`}>
         {/* Header toolbar */}
         <div className="flex items-center justify-between">
           <span className="font-extrabold text-sm text-white tracking-wide uppercase">File Explorer</span>
@@ -258,7 +263,10 @@ export const Notes: React.FC = () => {
                 return (
                   <div
                     key={note.id}
-                    onClick={() => setSelectedNoteId(note.id)}
+                    onClick={() => {
+                      setSelectedNoteId(note.id);
+                      setMobilePanelView('editor'); // switch to editor on mobile tap
+                    }}
                     className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer border transition-all ${
                       isSelected
                         ? 'bg-primary/10 border-primary/20 text-white'
@@ -309,8 +317,22 @@ export const Notes: React.FC = () => {
       </div>
 
       {/* 2. Right Note Editor Workspace */}
-      <div className="flex-1 min-w-0 h-full">
-        <NoteEditor noteId={selectedNoteId} />
+      <div className={`${
+        mobilePanelView === 'sidebar' ? 'hidden md:flex' : 'flex'
+      } md:flex flex-1 min-w-0 h-full flex-col`}>
+        {/* Mobile back-to-explorer button */}
+        <div className="md:hidden flex items-center gap-2 pb-3 shrink-0">
+          <button
+            onClick={() => setMobilePanelView('sidebar')}
+            className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white font-semibold transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>Back to Files</span>
+          </button>
+        </div>
+        <div className="flex-1 min-h-0">
+          <NoteEditor noteId={selectedNoteId} />
+        </div>
       </div>
 
       {/* Add Folder Modal Overlay */}

@@ -589,7 +589,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <main className="flex-1 overflow-y-auto p-4 pb-20 md:pb-8 md:p-8">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeSection}

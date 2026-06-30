@@ -219,7 +219,7 @@ export const Planner: React.FC = () => {
           const slotMeta = SLOT_META[slot];
 
           return (
-            <div key={slot} className="flex flex-col h-[55vh] space-y-4">
+            <div key={slot} className="flex flex-col h-auto md:h-[55vh] min-h-[40vh] space-y-4">
               {/* Column title */}
               <div className="flex items-center justify-between border-b border-white/5 pb-2 shrink-0">
                 <span className="font-bold text-sm text-zinc-300 tracking-wide">{slotMeta.emoji} {slotMeta.label}</span>
