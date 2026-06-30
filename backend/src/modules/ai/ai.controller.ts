@@ -143,6 +143,9 @@ export class AIController {
         includeRag ?? true,
         (chunk: string) => {
           sendSse('chunk', { chunk });
+        },
+        (context: string) => {
+          sendSse('context', { context });
         }
       );
 

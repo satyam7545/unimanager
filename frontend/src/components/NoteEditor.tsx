@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { Pin, Star, CheckCircle, CloudLightning, RefreshCw, Eye, Edit3, Tag as TagIcon, Paperclip, Download, Plus, Trash2 } from 'lucide-react';
+import { Pin, Star, CheckCircle, CloudLightning, RefreshCw, Eye, Edit3, Tag as TagIcon, Paperclip, Download, Plus, Trash2, Sparkles } from 'lucide-react';
 import { api, API_HOST } from '@/services/api';
+import { useUIStore } from '@/store/uiStore';
 
 interface NoteEditorProps {
   noteId: string | null;
@@ -333,6 +334,22 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
             title="Pin Note"
           >
             <Pin className={`w-4 h-4 ${isPinned ? 'fill-primary' : ''}`} />
+          </button>
+
+          {/* Ask AI quick action */}
+          <button
+            type="button"
+            onClick={() => {
+              if (noteId) {
+                localStorage.setItem('selectedNoteIdForAI', noteId);
+                useUIStore.getState().setActiveSection('AI Assistant');
+              }
+            }}
+            className="p-2 rounded-lg border border-white/5 text-zinc-500 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-1.5"
+            title="Ask AI Assistant about this note"
+          >
+            <Sparkles className="w-4 h-4 text-violet-400" />
+            <span className="hidden sm:inline text-[10px] font-bold text-zinc-300">Ask AI</span>
           </button>
         </div>
       </div>

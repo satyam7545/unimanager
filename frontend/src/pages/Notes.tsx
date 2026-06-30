@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Folder, FolderPlus, FilePlus2, Trash2, Search, Pin, Star, FileText, ChevronLeft } from 'lucide-react';
 import { api } from '@/services/api';
@@ -20,6 +20,52 @@ export const Notes: React.FC = () => {
 
   // Mobile: show sidebar OR editor (not both at once on small screens)
   const [mobilePanelView, setMobilePanelView] = useState<'sidebar' | 'editor'>('sidebar');
+
+  // Resizable sidebar states & refs
+  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isResizing = useRef(false);
+
+  const startResizing = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isResizing.current || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const newWidth = e.clientX - rect.left;
+    if (newWidth > 200 && newWidth < 500) {
+      setSidebarWidth(newWidth);
+    }
+  };
+
+  const handleMouseUp = () => {
+    isResizing.current = false;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+  };
+
+  useEffect(() => {
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
+  // Drag and drop note move category mutation
+  const moveNoteMutation = useMutation({
+    mutationFn: async ({ noteId, folderId }: { noteId: string; folderId: string | null }) => {
+      return api.put(`/notes/${noteId}`, { folderId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notes'] });
+      queryClient.invalidateQueries({ queryKey: ['noteDetails'] });
+    },
+  });
+
 
   // 0. Handle redirect deep linking and quick action trigger
   React.useEffect(() => {
@@ -140,11 +186,14 @@ export const Notes: React.FC = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-8.5rem)] flex gap-0 md:gap-6 select-none relative overflow-hidden">
+    <div ref={containerRef} className="h-[calc(100vh-8.5rem)] flex gap-0 md:gap-4 select-none relative overflow-hidden">
       {/* 1. Left Explorer Sidebar panel */}
-      <div className={`${
-        mobilePanelView === 'editor' ? 'hidden md:flex' : 'flex'
-      } md:flex w-full md:w-80 shrink-0 flex-col border border-white/5 bg-zinc-950/20 backdrop-blur-md rounded-2xl overflow-hidden p-4 space-y-4`}>
+      <div
+        className={`${
+          mobilePanelView === 'editor' ? 'hidden md:flex' : 'flex'
+        } md:flex flex-col border border-white/5 bg-zinc-950/20 backdrop-blur-md rounded-2xl overflow-hidden p-4 space-y-4 shrink-0`}
+        style={{ width: mobilePanelView === 'editor' ? undefined : `${sidebarWidth}px` }}
+      >
         {/* Header toolbar */}
         <div className="flex items-center justify-between">
           <span className="font-extrabold text-sm text-white tracking-wide uppercase">File Explorer</span>
@@ -186,6 +235,14 @@ export const Notes: React.FC = () => {
             {/* Unsorted folder option */}
             <button
               onClick={() => setActiveFolderId(null)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const noteId = e.dataTransfer.getData('text/plain');
+                if (noteId) {
+                  moveNoteMutation.mutate({ noteId, folderId: null });
+                }
+              }}
               className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-left transition-colors ${
                 activeFolderId === null
                   ? 'text-white bg-primary/10 border border-primary/20 shadow-inner'
@@ -201,7 +258,18 @@ export const Notes: React.FC = () => {
               const isSelected = activeFolderId === folder.id;
               
               return (
-                <div key={folder.id} className="group flex items-center justify-between pr-1">
+                <div
+                  key={folder.id}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const noteId = e.dataTransfer.getData('text/plain');
+                    if (noteId) {
+                      moveNoteMutation.mutate({ noteId, folderId: folder.id });
+                    }
+                  }}
+                  className="group flex items-center justify-between pr-1"
+                >
                   <button
                     onClick={() => toggleFolder(folder.id)}
                     className={`flex-1 flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-left transition-colors truncate ${
@@ -263,6 +331,10 @@ export const Notes: React.FC = () => {
                 return (
                   <div
                     key={note.id}
+                    draggable={true}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', note.id);
+                    }}
                     onClick={() => {
                       setSelectedNoteId(note.id);
                       setMobilePanelView('editor'); // switch to editor on mobile tap
@@ -315,6 +387,12 @@ export const Notes: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Resize Handle Separator for Desktop */}
+      <div
+        onMouseDown={startResizing}
+        className="hidden md:block w-1.5 hover:w-2 hover:bg-primary/30 active:bg-primary cursor-col-resize self-stretch transition-all duration-150 shrink-0 select-none rounded-full"
+      />
 
       {/* 2. Right Note Editor Workspace */}
       <div className={`${

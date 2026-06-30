@@ -29,7 +29,8 @@ import {
   Circle,
   FileCheck,
   ArrowUpRight,
-  PanelLeft
+  PanelLeft,
+  Search
 } from 'lucide-react';
 import { api, BASE_URL } from '@/services/api';
 import { useAuthStore } from '@/features/auth/store/authStore';
@@ -133,6 +134,10 @@ export const AIAssistant: React.FC = () => {
   const [includeRag, setIncludeRag] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [activeRAGContext, setActiveRAGContext] = useState<string | null>(null);
+  const [showRAGInspector, setShowRAGInspector] = useState(false);
+  const [editingConvId, setEditingConvId] = useState<string | null>(null);
+  const [editingTitleText, setEditingTitleText] = useState('');
 
   // AI Tools Form States
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -257,6 +262,19 @@ export const AIAssistant: React.FC = () => {
     }
   }, [settings]);
 
+  // Handle Note editor "Ask AI" deep link redirects
+  useEffect(() => {
+    const deepNoteId = localStorage.getItem('selectedNoteIdForAI');
+    if (deepNoteId) {
+      localStorage.removeItem('selectedNoteIdForAI');
+      setActiveTab('tools');
+      setActiveTool('revision-notes');
+      setSelectedNoteId(deepNoteId);
+      setMobileSidebarOpen(false);
+    }
+  }, [notesList]);
+
+
   const handleProviderChange = (newProvider: string) => {
     setProvider(newProvider);
     if (newProvider === 'openai') {
@@ -323,6 +341,7 @@ export const AIAssistant: React.FC = () => {
     setMessageText('');
     setIsSending(true);
     setStreamingMessage('');
+    setActiveRAGContext(null); // Reset active context
 
     // 1. Cancel active messages query to prevent race conditions
     await queryClient.cancelQueries({ queryKey: ['aiMessages', activeConvId] });
@@ -391,6 +410,8 @@ export const AIAssistant: React.FC = () => {
               const parsed = JSON.parse(dataStr);
               if (parsed.chunk) {
                 setStreamingMessage((prev) => (prev || '') + parsed.chunk);
+              } else if (parsed.context) {
+                setActiveRAGContext(parsed.context);
               } else if (parsed.error) {
                 throw new Error(parsed.error);
               }
@@ -684,25 +705,71 @@ export const AIAssistant: React.FC = () => {
               ) : (
                 conversations?.map((c: any) => {
                   const isActive = activeConvId === c.id;
+                  const isEditing = editingConvId === c.id;
+                  const displayTitle = localStorage.getItem(`conv_title_${c.id}`) || (
+                    c.lastMessage && c.lastMessage !== 'No messages yet.'
+                      ? c.lastMessage
+                      : `${c.provider.toUpperCase()} Session`
+                  );
+
                   return (
                     <div
                       key={c.id}
-                      onClick={() => setActiveConvId(c.id)}
+                      onClick={() => !isEditing && setActiveConvId(c.id)}
                       className={`w-full p-2.5 rounded-xl border flex items-center justify-between gap-2 group cursor-pointer transition-all ${
                         isActive
                           ? 'border-primary/30 bg-primary/5 text-white'
                           : 'border-transparent text-zinc-400 hover:text-white hover:bg-white/[0.02]'
                       }`}
                     >
-                      <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
                         <MessageSquare className="w-3.5 h-3.5 shrink-0 text-zinc-500" />
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold truncate">
-                            {c.lastMessage && c.lastMessage !== 'No messages yet.'
-                              ? c.lastMessage
-                              : `${c.provider.toUpperCase()} Session`}
-                          </div>
-                          <div className="text-[9px] text-zinc-500 font-semibold tracking-wide uppercase mt-0.5">
+                        <div className="min-w-0 flex-1">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editingTitleText}
+                              onChange={(e) => setEditingTitleText(e.target.value)}
+                              onBlur={() => {
+                                if (editingTitleText.trim()) {
+                                  localStorage.setItem(`conv_title_${c.id}`, editingTitleText.trim());
+                                } else {
+                                  localStorage.removeItem(`conv_title_${c.id}`);
+                                }
+                                setEditingConvId(null);
+                                refetchConvs();
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  if (editingTitleText.trim()) {
+                                    localStorage.setItem(`conv_title_${c.id}`, editingTitleText.trim());
+                                  } else {
+                                    localStorage.removeItem(`conv_title_${c.id}`);
+                                  }
+                                  setEditingConvId(null);
+                                  refetchConvs();
+                                } else if (e.key === 'Escape') {
+                                  setEditingConvId(null);
+                                }
+                              }}
+                              autoFocus
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full bg-zinc-900 border border-primary/45 rounded px-1.5 py-0.5 text-xs text-white focus:outline-none"
+                            />
+                          ) : (
+                            <div
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                setEditingConvId(c.id);
+                                setEditingTitleText(displayTitle);
+                              }}
+                              className="text-xs font-bold truncate select-none"
+                              title="Double click to rename"
+                            >
+                              {displayTitle}
+                            </div>
+                          )}
+                          <div className="text-[9px] text-zinc-500 font-semibold tracking-wide uppercase mt-0.5 select-none">
                             {c.model}
                           </div>
                         </div>
@@ -727,7 +794,7 @@ export const AIAssistant: React.FC = () => {
                           onClick={(e) => { e.stopPropagation(); setConfirmDeleteConvId(c.id); }}
                           className="p-1 rounded text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
@@ -812,15 +879,28 @@ export const AIAssistant: React.FC = () => {
                   </div>
                 </div>
 
-                <button
-                  onClick={() => setIncludeRag(!includeRag)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all ${
-                    includeRag ? 'border-primary/20 bg-primary/10 text-primary' : 'border-white/5 bg-white/[0.01] text-zinc-500'
-                  }`}
-                >
-                  <Brain className="w-3.5 h-3.5 shrink-0" />
-                  <span>RAG Context</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIncludeRag(!includeRag)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold transition-all ${
+                      includeRag ? 'border-primary/20 bg-primary/10 text-primary' : 'border-white/5 bg-white/[0.01] text-zinc-500'
+                    }`}
+                  >
+                    <Brain className="w-3.5 h-3.5 shrink-0" />
+                    <span>RAG Context</span>
+                  </button>
+
+                  {includeRag && activeRAGContext && (
+                    <button
+                      onClick={() => setShowRAGInspector(true)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-violet-500/20 bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 text-[10px] font-bold transition-all animate-pulse"
+                      title="Inspect retrieved workspace context"
+                    >
+                      <Search className="w-3 h-3 shrink-0" />
+                      <span>Inspect Context</span>
+                    </button>
+                  )}
+                </div>
               </header>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -1728,6 +1808,42 @@ export const AIAssistant: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* RAG Context Inspector Modal */}
+      {showRAGInspector && activeRAGContext && (
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md z-50 animate-fade-in-up"
+          onClick={() => setShowRAGInspector(false)}
+        >
+          <div className="w-full max-w-xl glass-panel rounded-2xl border border-white/5 flex flex-col overflow-hidden relative shadow-2xl max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Brain className="w-5 h-5 text-primary" />
+                <h3 className="text-base font-bold text-white">Retrieved RAG Workspace Context</h3>
+              </div>
+              <button
+                onClick={() => setShowRAGInspector(false)}
+                className="p-1 rounded-lg text-zinc-500 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto custom-scrollbar bg-black/25 text-xs font-mono text-zinc-400 whitespace-pre-wrap select-text leading-relaxed">
+              {activeRAGContext}
+            </div>
+            
+            <div className="px-6 py-4 border-t border-white/5 flex justify-end">
+              <button
+                onClick={() => setShowRAGInspector(false)}
+                className="h-9 px-4 rounded-xl bg-primary hover:bg-primary/95 text-white text-xs font-bold transition-all"
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

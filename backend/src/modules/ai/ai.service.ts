@@ -169,7 +169,8 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
     conversationId: string,
     content: string,
     includeRag: boolean,
-    onChunk: (chunk: string) => void
+    onChunk: (chunk: string) => void,
+    onContext?: (context: string) => void
   ): Promise<Message> {
     const conversation = await this.aiRepository.findConversationById(conversationId, userId);
     if (!conversation) {
@@ -213,6 +214,9 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
       ragContext = await this.extractRagContext(userId, content);
       if (ragContext) {
         combinedSystemPrompt += `\n\n[CONTEXT FROM THE USER'S WORKSPACE (Use this to answer questions accurately and specifically):]\n${ragContext}`;
+        if (onContext) {
+          onContext(ragContext);
+        }
       }
     }
 
