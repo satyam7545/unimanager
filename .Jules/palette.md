@@ -1,0 +1,3 @@
+## 2024-05-30 - Missing Accessible Attributes on Icon Buttons
+**Learning:** Found a widespread accessibility issue pattern across this app where `title` attributes are used to provide tooltips for icon-only buttons (like Favorite, Pin, Delete, Download), but proper `aria-label`s and `aria-pressed` states are missing. This makes navigation very confusing for screen reader users as they only hear the title on focus without context of its interactive state.
+**Action:** When working on generic component improvements or refactoring, ensure that all icon-only buttons have explicit `aria-label`s, `aria-pressed` or `aria-expanded` attributes where appropriate, and `focus-visible` classes to ensure full keyboard navigation support.

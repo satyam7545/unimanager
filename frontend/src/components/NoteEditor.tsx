@@ -310,14 +310,16 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
               setIsFavorite(!isFavorite);
               isDirtyRef.current = true;
             }}
-            className={`p-2 rounded-lg border transition-colors ${
+            aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+            aria-pressed={isFavorite}
+            className={`p-2 rounded-lg border transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 outline-none ${
               isFavorite
                 ? 'border-yellow-500/20 bg-yellow-500/10 text-yellow-500'
                 : 'border-white/5 text-zinc-500 hover:text-white hover:bg-white/5'
             }`}
             title="Favorite"
           >
-            <Star className={`w-4 h-4 ${isFavorite ? 'fill-yellow-500' : ''}`} />
+            <Star className={`w-4 h-4 ${isFavorite ? 'fill-yellow-500' : ''}`} aria-hidden="true" />
           </button>
 
           {/* Pin toggle */}
@@ -326,14 +328,16 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
               setIsPinned(!isPinned);
               isDirtyRef.current = true;
             }}
-            className={`p-2 rounded-lg border transition-colors ${
+            aria-label={isPinned ? "Unpin note" : "Pin note"}
+            aria-pressed={isPinned}
+            className={`p-2 rounded-lg border transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 outline-none ${
               isPinned
                 ? 'border-primary/20 bg-primary/10 text-primary'
                 : 'border-white/5 text-zinc-500 hover:text-white hover:bg-white/5'
             }`}
             title="Pin Note"
           >
-            <Pin className={`w-4 h-4 ${isPinned ? 'fill-primary' : ''}`} />
+            <Pin className={`w-4 h-4 ${isPinned ? 'fill-primary' : ''}`} aria-hidden="true" />
           </button>
 
           {/* Ask AI quick action */}
@@ -345,10 +349,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
                 useUIStore.getState().setActiveSection('AI Assistant');
               }
             }}
-            className="p-2 rounded-lg border border-white/5 text-zinc-500 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-1.5"
+            aria-label="Ask AI Assistant about this note"
+            className="p-2 rounded-lg border border-white/5 text-zinc-500 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-primary/50 outline-none"
             title="Ask AI Assistant about this note"
           >
-            <Sparkles className="w-4 h-4 text-violet-400" />
+            <Sparkles className="w-4 h-4 text-violet-400" aria-hidden="true" />
             <span className="hidden sm:inline text-[10px] font-bold text-zinc-300">Ask AI</span>
           </button>
         </div>
@@ -358,6 +363,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
       <div className="p-4 border-b border-white/5 shrink-0 bg-black/10 flex flex-col md:flex-row md:items-center gap-4">
         <input
           type="text"
+          aria-label="Note title"
           value={title}
           onChange={handleTitleChange}
           placeholder="Untitled Note"
@@ -418,6 +424,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
             <TagIcon className="w-3.5 h-3.5 text-zinc-500" />
             <input
               type="text"
+              aria-label="Note tags"
               value={tagsInput}
               onChange={(e) => {
                 setTagsInput(e.target.value);
@@ -476,11 +483,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
                   <span className="truncate text-zinc-300 font-medium" title={att.fileName}>{att.fileName}</span>
                   <span className="text-[10px] text-zinc-500 shrink-0">({(att.fileSize / 1024).toFixed(1)} KB)</span>
                   <div className="flex items-center gap-1 ml-2 shrink-0">
-                    <a href={fileUrl} target="_blank" rel="noreferrer" download className="p-1 text-zinc-500 hover:text-white rounded hover:bg-white/5 transition-colors" title="Download">
-                      <Download className="w-3.5 h-3.5" />
+                    <a href={fileUrl} target="_blank" rel="noreferrer" download aria-label={`Download ${att.fileName}`} className="p-1 text-zinc-500 hover:text-white rounded hover:bg-white/5 transition-colors focus-visible:ring-2 focus-visible:ring-primary/50 outline-none" title="Download">
+                      <Download className="w-3.5 h-3.5" aria-hidden="true" />
                     </a>
-                    <button onClick={() => { if (window.confirm(`Delete ${att.fileName}?`)) deleteAttachmentMutation.mutate(att.id); }} className="p-1 text-zinc-600 hover:text-red-400 rounded hover:bg-white/5 transition-colors" title="Delete">
-                      <Trash2 className="w-3.5 h-3.5" />
+                    <button onClick={() => { if (window.confirm(`Delete ${att.fileName}?`)) deleteAttachmentMutation.mutate(att.id); }} aria-label={`Delete ${att.fileName}`} className="p-1 text-zinc-600 hover:text-red-400 rounded hover:bg-white/5 transition-colors focus-visible:ring-2 focus-visible:ring-red-400/50 outline-none" title="Delete">
+                      <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                     </button>
                   </div>
                 </div>
