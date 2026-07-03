@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Mail, Lock, User, ArrowRight, AlertCircle } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 import { authService } from '../features/auth/services/auth.service';
 import { GlassCard } from '@/components/GlassCard';
 
@@ -120,10 +120,10 @@ export const Register: React.FC<RegisterProps> = ({ onNavigateToLogin }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-10 rounded-lg bg-primary hover:bg-primary/90 text-white font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 group relative overflow-hidden active:scale-[0.98] disabled:opacity-50"
+              className="w-full h-10 rounded-lg bg-primary hover:bg-primary/95 text-white font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 group relative overflow-hidden active:scale-[0.98] disabled:opacity-50"
             >
               {loading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
               ) : (
                 <>
                   <span>Create Account</span>

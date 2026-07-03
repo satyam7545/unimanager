@@ -108,24 +108,25 @@
 /* Glassmorphism utility classes */
 .glass-panel {
   background: rgba(9, 9, 11, 0.65);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px) saturate(190%);
+  -webkit-backdrop-filter: blur(16px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
 }
 
 .glass-panel-hover {
-  @apply transition-all duration-300;
+  @apply transition-all duration-300 ease-out;
 }
 .glass-panel-hover:hover {
-  background: rgba(15, 15, 20, 0.75);
+  background: rgba(13, 13, 17, 0.75);
   border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 8px 30px 0 rgba(0, 0, 0, 0.4);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
 }
 
 .glass-input {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  @apply transition-all duration-200 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  @apply transition-all duration-200 focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 hover:border-white/10;
 }
 
 /* Custom Scrollbar Styles for nested scrolling panels */
@@ -151,7 +152,7 @@
 @keyframes fade-in-up {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.98);
+    transform: translateY(12px) scale(0.97);
   }
   to {
     opacity: 1;
@@ -159,8 +160,41 @@
   }
 }
 
+/* Ambient floating blobs animation */
+@keyframes ambient-float {
+  0%, 100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(30px, -50px) scale(1.12);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.92);
+  }
+}
+
 @layer utilities {
   .animate-fade-in-up {
-    animation: fade-in-up 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: fade-in-up 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .animate-blob-slow {
+    animation: ambient-float 22s infinite ease-in-out;
+  }
+  .animate-blob-slower {
+    animation: ambient-float 32s infinite ease-in-out 4s;
+  }
+  .animate-blob-slowest {
+    animation: ambient-float 42s infinite ease-in-out 8s;
+  }
+}
+
+/* Accessibility constraints */
+@media (prefers-reduced-motion: reduce) {
+  .animate-blob-slow,
+  .animate-blob-slower,
+  .animate-blob-slowest,
+  .animate-fade-in-up {
+    animation: none !important;
+    transition: none !important;
   }
 }

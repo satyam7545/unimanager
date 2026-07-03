@@ -90,22 +90,84 @@ export const Dashboard: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="space-y-8 animate-pulse">
+      <div className="space-y-8 select-none">
         {/* Skeleton Header */}
-        <div className="h-10 w-64 bg-white/5 rounded-lg" />
-        {/* Skeleton Grid */}
+        <div className="flex justify-between items-center">
+          <div className="space-y-2">
+            <div className="h-7 w-48 bg-white/5 rounded-lg animate-pulse" />
+            <div className="h-4 w-72 bg-white/5 rounded-lg animate-pulse" />
+          </div>
+          <div className="h-7 w-32 bg-white/5 rounded-full animate-pulse" />
+        </div>
+
+        {/* Skeleton Highlights Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-24 bg-white/5 rounded-xl border border-white/5" />
+            <GlassCard key={i} hoverEffect={false} className="border-white/5 flex items-center gap-4 animate-pulse">
+              <div className="w-12 h-12 rounded-xl bg-white/5 shrink-0" />
+              <div className="space-y-2 flex-1">
+                <div className="h-3 w-16 bg-white/5 rounded" />
+                <div className="h-5 w-24 bg-white/5 rounded" />
+              </div>
+            </GlassCard>
           ))}
         </div>
-        {/* Skeleton layout splits */}
+
+        {/* Skeleton Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <div className="h-48 bg-white/5 rounded-xl border border-white/5" />
-            <div className="h-64 bg-white/5 rounded-xl border border-white/5" />
+            <GlassCard hoverEffect={false} className="border-white/5 space-y-4 animate-pulse">
+              <div className="flex justify-between items-center">
+                <div className="space-y-1.5">
+                  <div className="h-4 w-32 bg-white/5 rounded" />
+                  <div className="h-3 w-48 bg-white/5 rounded" />
+                </div>
+                <div className="h-4 w-20 bg-white/5 rounded" />
+              </div>
+              <div className="space-y-3 pt-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="w-4 h-4 bg-white/5 rounded animate-pulse" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-4 w-full bg-white/5 rounded animate-pulse" />
+                      <div className="h-3 w-24 bg-white/5 rounded animate-pulse" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+
+            <GlassCard hoverEffect={false} className="border-white/5 space-y-4 animate-pulse">
+              <div className="flex justify-between items-center">
+                <div className="space-y-1.5">
+                  <div className="h-4 w-32 bg-white/5 rounded animate-pulse" />
+                  <div className="h-3 w-48 bg-white/5 rounded animate-pulse" />
+                </div>
+                <div className="h-6 w-28 bg-white/5 rounded-full animate-pulse" />
+              </div>
+              <div className="h-40 bg-white/5 rounded-lg pt-4" />
+            </GlassCard>
           </div>
-          <div className="h-96 bg-white/5 rounded-xl border border-white/5" />
+
+          <div className="space-y-6">
+            <GlassCard hoverEffect={false} className="border-white/5 space-y-4 animate-pulse">
+              <div className="h-4 w-36 bg-white/5 rounded animate-pulse" />
+              <div className="space-y-3 pt-2">
+                {[1, 2].map((i) => (
+                  <div key={i} className="h-16 bg-white/5 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            </GlassCard>
+
+            <GlassCard hoverEffect={false} className="border-white/5 space-y-4 animate-pulse">
+              <div className="h-4 w-32 bg-white/5 rounded animate-pulse" />
+              <div className="space-y-2 pt-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-10 bg-white/5 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            </GlassCard>
+          </div>
         </div>
       </div>
     );

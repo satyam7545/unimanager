@@ -295,10 +295,17 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen flex text-foreground bg-background selection:bg-primary/20">
+    <div className="min-h-screen flex text-foreground bg-background selection:bg-primary/20 relative overflow-hidden">
+      {/* Background ambient light blobs */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-primary/5 blur-[120px] animate-blob-slow" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full bg-violet-600/5 blur-[130px] animate-blob-slower" />
+        <div className="absolute top-[30%] right-[20%] w-[40%] h-[40%] rounded-full bg-indigo-500/3 blur-[100px] animate-blob-slowest" />
+      </div>
+
       {/* Desktop Collapsible Sidebar */}
       <aside
-        className={`hidden md:flex flex-col border-r border-white/5 bg-black/45 backdrop-blur-xl transition-all duration-300 relative ${
+        className={`hidden md:flex flex-col border-r border-white/5 bg-black/45 backdrop-blur-xl transition-all duration-300 relative z-10 ${
           sidebarOpen ? 'w-64' : 'w-20'
         }`}
       >
@@ -350,7 +357,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <button
                 key={item.name}
                 onClick={() => setActiveSection(item.name)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative ${
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative active:scale-[0.98] ${
                   isActive
                     ? 'text-white bg-primary/10 shadow-inner shadow-primary/10 border border-primary/20'
                     : 'text-zinc-400 hover:text-white hover:bg-white/[0.02] border border-transparent'
@@ -408,7 +415,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       </aside>
 
       {/* Mobile Top Navigation + Bottom Navigation Bar */}
-      <div className="flex-1 flex flex-col min-w-0 relative pb-16 md:pb-0">
+      <div className="flex-1 flex flex-col min-w-0 relative pb-16 md:pb-0 z-10">
         {/* Top Header */}
         <header className="h-16 border-b border-white/5 bg-black/20 backdrop-blur-md flex items-center justify-between px-6 z-40 shrink-0">
           <div className="flex items-center gap-3">
