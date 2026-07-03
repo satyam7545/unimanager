@@ -298,9 +298,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     <div className="min-h-screen flex text-foreground bg-background selection:bg-primary/20 relative overflow-hidden">
       {/* Background ambient light blobs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-primary/5 blur-[120px] animate-blob-slow" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full bg-violet-600/5 blur-[130px] animate-blob-slower" />
-        <div className="absolute top-[30%] right-[20%] w-[40%] h-[40%] rounded-full bg-indigo-500/3 blur-[100px] animate-blob-slowest" />
+        <div className="absolute top-[-10%] left-[-10%] w-[55%] h-[55%] rounded-full bg-primary/12 blur-[130px] animate-blob-slow" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[65%] h-[65%] rounded-full bg-violet-600/10 blur-[140px] animate-blob-slower" />
+        <div className="absolute top-[25%] right-[15%] w-[45%] h-[45%] rounded-full bg-indigo-500/8 blur-[110px] animate-blob-slowest" />
       </div>
 
       {/* Desktop Collapsible Sidebar */}
