@@ -133,7 +133,7 @@ export const Projects: React.FC = () => {
                   <h3 className="font-bold text-lg text-white group-hover:text-primary transition-colors truncate">
                     {proj.name}
                   </h3>
-                  {proj.githubUrl && (
+                  {proj.githubUrl && /^https?:\/\//i.test(proj.githubUrl) && (
                     <a
                       href={proj.githubUrl}
                       target="_blank"
