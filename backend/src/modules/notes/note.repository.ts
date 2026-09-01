@@ -128,25 +128,54 @@ export class NoteRepository {
   // --- Tag Helpers ---
 
   async findOrCreateTags(userId: string, tagNames: string[]): Promise<string[]> {
-    const ids: string[] = [];
+    // 1. Clean and deduplicate the input tag names
+    const trimmedNames = tagNames.map(n => n.trim()).filter(n => n.length > 0);
+    const uniqueNames = [...new Set(trimmedNames)];
 
-    for (const name of tagNames) {
-      const trimmed = name.trim();
-      if (!trimmed) continue;
-
-      let tag = await prisma.tag.findFirst({
-        where: { name: trimmed, userId },
-      });
-
-      if (!tag) {
-        tag = await prisma.tag.create({
-          data: { name: trimmed, userId, color: '#8B5CF6' },
-        });
-      }
-
-      ids.push(tag.id);
+    if (uniqueNames.length === 0) {
+      return [];
     }
 
-    return ids;
+    // 2. Fetch existing tags in one query
+    const existingTags = await prisma.tag.findMany({
+      where: {
+        userId,
+        name: { in: uniqueNames }
+      }
+    });
+
+    const existingNames = new Set(existingTags.map(t => t.name));
+
+    // 3. Find missing tags
+    const missingNames = uniqueNames.filter(name => !existingNames.has(name));
+
+    // 4. Create missing tags in bulk
+    if (missingNames.length > 0) {
+      await prisma.tag.createMany({
+        data: missingNames.map(name => ({
+          name,
+          userId,
+          color: '#8B5CF6'
+        })),
+        skipDuplicates: true // Just in case of concurrent creations
+      });
+
+      // Fetch the newly created tags to get their IDs
+      const newTags = await prisma.tag.findMany({
+        where: {
+          userId,
+          name: { in: missingNames }
+        }
+      });
+
+      existingTags.push(...newTags);
+    }
+
+    // 5. Map back to original order and format
+    const tagMap = new Map(existingTags.map(t => [t.name, t.id]));
+
+    return trimmedNames
+      .map(name => tagMap.get(name))
+      .filter((id): id is string => id !== undefined);
   }
 }
