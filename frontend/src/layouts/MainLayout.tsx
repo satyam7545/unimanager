@@ -72,6 +72,14 @@ const getNotificationIcon = (title: string) => {
   if (lower.includes('habit')) return <Flame className="w-4 h-4 text-orange-500 fill-orange-500/25" />;
   return <Info className="w-4 h-4 text-primary" />;
 };
+interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
 interface MainLayoutProps {
   children: React.ReactNode;
 }
@@ -185,7 +193,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     enabled: !!user, // Only fetch when logged in
   });
 
-  const unreadCount = notifications.filter((n: any) => !n.isRead).length;
+  const unreadCount = notifications.filter((n: AppNotification) => !n.isRead).length;
 
   // Sound and push alerts triggers
   useEffect(() => {
@@ -196,18 +204,18 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
     // Populate initially on first load, so we only alert for new items that arise during session
     if (prevNotificationIds.length === 0) {
-      setPrevNotificationIds(notifications.map((n: any) => n.id));
+      setPrevNotificationIds(notifications.map((n: AppNotification) => n.id));
       return;
     }
 
     // Identify new unread notifications
     const newUnread = notifications.filter(
-      (n: any) => !n.isRead && !prevNotificationIds.includes(n.id)
+      (n: AppNotification) => !n.isRead && !prevNotificationIds.includes(n.id)
     );
 
     if (newUnread.length > 0) {
       // Add new IDs to state to prevent re-alerting
-      setPrevNotificationIds((prev) => [...prev, ...newUnread.map((n: any) => n.id)]);
+      setPrevNotificationIds((prev) => [...prev, ...newUnread.map((n: AppNotification) => n.id)]);
 
       // Play audio chime
       if (isSoundEnabled) {
@@ -235,7 +243,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       // Trigger standard browser push
       if (isPushEnabled && 'Notification' in window && Notification.permission === 'granted') {
-        newUnread.forEach((n: any) => {
+        newUnread.forEach((n: AppNotification) => {
           new Notification(n.title, {
             body: n.message,
             icon: '/icon-192.png',
@@ -244,7 +252,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       }
     } else {
       // Synchronize list if items are read or deleted
-      const allIds = notifications.map((n: any) => n.id);
+      const allIds = notifications.map((n: AppNotification) => n.id);
       const needsSync = allIds.some((id: string) => !prevNotificationIds.includes(id)) || 
                         prevNotificationIds.some((id) => !allIds.includes(id));
       if (needsSync) {
@@ -524,7 +532,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                           </p>
                         </div>
                       ) : (
-                        notifications.map((n: any) => (
+                        notifications.map((n: AppNotification) => (
                           <div
                             key={n.id}
                             className={`p-3.5 flex gap-3 transition-colors relative group/item ${

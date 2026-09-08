@@ -1,6 +1,6 @@
 import { HabitRepository } from './habit.repository';
 import { NotFoundError, ForbiddenError } from '../../utils/errors';
-import { Habit } from '@prisma/client';
+import { Habit, HabitLog } from '@prisma/client';
 
 export class HabitService {
   private repository = new HabitRepository();
@@ -94,7 +94,7 @@ export class HabitService {
     return { startOfToday, endOfToday };
   }
 
-  private calculateStreak(logs: any[]): number {
+  private calculateStreak(logs: HabitLog[]): number {
     if (logs.length === 0) return 0;
 
     const loggedDates = new Set(
