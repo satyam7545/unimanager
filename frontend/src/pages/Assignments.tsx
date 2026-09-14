@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, List, Kanban, Calendar, Clock, Trash2, Edit3, Filter, Paperclip, Download, RefreshCw } from 'lucide-react';
+import { Plus, List, Kanban, Calendar, Clock, Trash2, Edit3, Filter, Paperclip, Download, RefreshCw, Sparkles, Check, CheckSquare, X } from 'lucide-react';
 import { api, API_HOST } from '@/services/api';
 import { GlassCard } from '@/components/GlassCard';
 import { useUIStore } from '@/store/uiStore';
@@ -23,6 +23,14 @@ export const Assignments: React.FC = () => {
   const [priority, setPriority] = useState<'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'>('MEDIUM');
   const [status, setStatus] = useState<'PENDING' | 'IN_PROGRESS' | 'COMPLETED'>('PENDING');
   const [deadline, setDeadline] = useState('');
+  const [estimatedHours, setEstimatedHours] = useState<number>(2);
+
+  // Breakdown modal state
+  const [breakdownAssignment, setBreakdownAssignment] = useState<any | null>(null);
+  const [isDecomposing, setIsDecomposing] = useState(false);
+  const [subtasks, setSubtasks] = useState<Array<{ id: string; title: string; priority: 'LOW' | 'MEDIUM' | 'HIGH'; estimatedMinutes: number; selected: boolean }>>([]);
+  const [breakdownSuccessMsg, setBreakdownSuccessMsg] = useState('');
+  const [isCreatingTasks, setIsCreatingTasks] = useState(false);
 
   const [isUploading, setIsUploading] = useState(false);
 
@@ -152,6 +160,7 @@ export const Assignments: React.FC = () => {
     setPriority('MEDIUM');
     setStatus('PENDING');
     setDeadline('');
+    setEstimatedHours(2);
     setShowAddModal(false);
     setEditingAssignment(null);
   };
@@ -164,6 +173,7 @@ export const Assignments: React.FC = () => {
     setSemester(ass.semester || '');
     setPriority(ass.priority);
     setStatus(ass.status);
+    setEstimatedHours(ass.estimatedHours !== undefined && ass.estimatedHours !== null ? Number(ass.estimatedHours) : 2);
     
     // Format ISO string to datetime-local input string format "YYYY-MM-DDThh:mm"
     const dateObj = new Date(ass.deadline);
@@ -195,12 +205,91 @@ export const Assignments: React.FC = () => {
       priority,
       status,
       deadline: new Date(deadline).toISOString(),
+      estimatedHours: Number(estimatedHours) || 2,
     };
 
     if (editingAssignment) {
       updateMutation.mutate({ id: editingAssignment.id, data: payload });
     } else {
       createMutation.mutate(payload);
+    }
+  };
+
+  const handleBreakdown = async (ass: any) => {
+    setBreakdownAssignment(ass);
+    setIsDecomposing(true);
+    setSubtasks([]);
+    setBreakdownSuccessMsg('');
+    try {
+      const res = await api.post('/ai/features/assignment-assistant', { assignmentId: ass.id });
+      const raw = res.data?.data?.tasks || res.data?.tasks;
+      let list: any[] = [];
+      if (typeof raw === 'string') {
+        try {
+          list = JSON.parse(raw);
+        } catch {
+          list = raw.split('\n').filter(Boolean).map((line: string) => ({ title: line.replace(/^[-*0-9.]+\s*/, ''), priority: 'MEDIUM' }));
+        }
+      } else if (Array.isArray(raw)) {
+        list = raw;
+      }
+      if (!list || list.length === 0) {
+        list = [
+          { title: `Read assignment brief & criteria: ${ass.title}`, priority: 'HIGH' },
+          { title: `Gather references and prepare outline`, priority: 'MEDIUM' },
+          { title: `Draft first section / implementation`, priority: 'MEDIUM' },
+          { title: `Review, test, and finalize submission`, priority: 'HIGH' },
+        ];
+      }
+      const defaultMins = Math.max(15, Math.round(((ass.estimatedHours || 2) * 60) / list.length));
+      setSubtasks(list.map((item, idx) => ({
+        id: `task-${idx}-${Date.now()}`,
+        title: item.title || `Subtask ${idx + 1}`,
+        priority: (['LOW', 'MEDIUM', 'HIGH'].includes(item.priority) ? item.priority : 'MEDIUM') as any,
+        estimatedMinutes: defaultMins,
+        selected: true,
+      })));
+    } catch (err) {
+      console.error('Failed to decompose assignment', err);
+      setSubtasks([
+        { id: `t1-${Date.now()}`, title: `Review rubric & instructions for ${ass.title}`, priority: 'HIGH', estimatedMinutes: 30, selected: true },
+        { id: `t2-${Date.now()}`, title: `Draft preliminary notes & solutions`, priority: 'MEDIUM', estimatedMinutes: 60, selected: true },
+        { id: `t3-${Date.now()}`, title: `Final review & submit assignment`, priority: 'HIGH', estimatedMinutes: 30, selected: true },
+      ]);
+    } finally {
+      setIsDecomposing(false);
+    }
+  };
+
+  const handleCreateSubtasks = async () => {
+    if (!breakdownAssignment) return;
+    const selectedTasks = subtasks.filter((s) => s.selected && s.title.trim());
+    if (selectedTasks.length === 0) return;
+
+    setIsCreatingTasks(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      for (const t of selectedTasks) {
+        await api.post('/tasks', {
+          title: t.title,
+          priority: t.priority,
+          estimatedMinutes: Number(t.estimatedMinutes) || 30,
+          dueDate: breakdownAssignment.deadline ? breakdownAssignment.deadline.split('T')[0] : today,
+          subjectId: breakdownAssignment.subjectId || null,
+          status: 'PENDING',
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setBreakdownSuccessMsg(`Generated ${selectedTasks.length} tasks in your To-Do list!`);
+      setTimeout(() => {
+        setBreakdownAssignment(null);
+        setBreakdownSuccessMsg('');
+      }, 1400);
+    } catch (err) {
+      console.error('Failed to create subtasks', err);
+    } finally {
+      setIsCreatingTasks(false);
     }
   };
 
@@ -361,8 +450,12 @@ export const Assignments: React.FC = () => {
                     <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${getPriorityColor(ass.priority)}`}>
                       {ass.priority}
                     </span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold border border-white/10 bg-white/5 text-zinc-300 flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-zinc-400" />
+                      <span>{ass.estimatedHours || 2}h est</span>
+                    </span>
                     <span className="text-xs text-zinc-500 flex items-center gap-1 ml-2">
-                      <Clock className="w-3.5 h-3.5" />
+                      <Calendar className="w-3.5 h-3.5" />
                       <span>Due {new Date(ass.deadline).toLocaleDateString()}</span>
                     </span>
                   </div>
@@ -390,7 +483,18 @@ export const Assignments: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2.5 justify-end pl-7 md:pl-0 shrink-0">
+              <div className="flex items-center gap-2 justify-end pl-7 md:pl-0 shrink-0">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleBreakdown(ass);
+                  }}
+                  className="px-2.5 py-1.5 border border-primary/30 hover:border-primary/60 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-colors flex items-center gap-1.5 text-xs font-semibold"
+                  title="AI Subtask Breakdown"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Breakdown</span>
+                </button>
                 <button
                   onClick={() => handleOpenEdit(ass)}
                   className="p-2 border border-white/5 hover:border-white/10 bg-white/[0.01] hover:bg-white/5 text-zinc-500 hover:text-white rounded-lg transition-colors"
@@ -420,16 +524,18 @@ export const Assignments: React.FC = () => {
             const columnColor = columnStatus === 'PENDING' ? 'bg-zinc-500' : columnStatus === 'IN_PROGRESS' ? 'bg-blue-500' : 'bg-emerald-500';
 
             return (
-              <div key={columnStatus} className="space-y-4 flex flex-col h-[65vh]">
-                <div className="flex items-center justify-between border-b border-white/5 pb-2 shrink-0">
+              <div key={columnStatus} className="flex flex-col space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-white/5">
                   <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${columnColor}`} />
-                    <span className="font-bold text-sm text-zinc-300 uppercase tracking-wider">{columnName}</span>
+                    <span className={`w-2 h-2 rounded-full ${columnColor}`} />
+                    <h3 className="font-bold text-sm text-zinc-200">{columnName}</h3>
                   </div>
-                  <span className="text-xs bg-white/5 px-2 py-0.5 rounded-full text-zinc-400 font-semibold">{list.length}</span>
+                  <span className="text-xs bg-white/5 text-zinc-400 px-2 py-0.5 rounded-full font-medium">
+                    {list.length}
+                  </span>
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                <div className="space-y-3 min-h-[150px]">
                   {list.map((ass: any) => (
                     <GlassCard
                       key={ass.id}
@@ -445,7 +551,7 @@ export const Assignments: React.FC = () => {
                         </span>
                       </div>
 
-                      <div className="flex flex-wrap gap-1.5 mt-3">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-3">
                         {ass.subject && (
                           <span className="text-[9px] px-1.5 py-0.5 rounded font-extrabold" style={{ backgroundColor: `${ass.subject.color}15`, color: ass.subject.color }}>
                             {ass.subject.name}
@@ -458,6 +564,10 @@ export const Assignments: React.FC = () => {
                         )}
                         <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${getPriorityColor(ass.priority)}`}>
                           {ass.priority}
+                        </span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-bold border border-white/10 bg-white/5 text-zinc-400 flex items-center gap-1">
+                          <Clock className="w-2.5 h-2.5 text-zinc-500" />
+                          <span>{ass.estimatedHours || 2}h</span>
                         </span>
                       </div>
 
@@ -489,7 +599,17 @@ export const Assignments: React.FC = () => {
                           <span>{new Date(ass.deadline).toLocaleDateString()}</span>
                         </span>
 
-                        <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleBreakdown(ass);
+                            }}
+                            className="p-1 text-zinc-400 hover:text-primary rounded transition-colors"
+                            title="AI Subtask Breakdown"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-primary" />
+                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -576,7 +696,7 @@ export const Assignments: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Priority</label>
                   <select
@@ -610,11 +730,36 @@ export const Assignments: React.FC = () => {
                     type="datetime-local"
                     value={deadline}
                     onChange={(e) => setDeadline(e.target.value)}
-                    className="w-full h-10 px-3 bg-zinc-900 border border-white/10 rounded-lg text-sm text-white focus:outline-none"
+                    className="w-full h-10 px-2.5 bg-zinc-900 border border-white/10 rounded-lg text-xs text-white focus:outline-none"
                     required
                   />
                 </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Est. Hours</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0.5"
+                    max="100"
+                    value={estimatedHours}
+                    onChange={(e) => setEstimatedHours(parseFloat(e.target.value) || 1)}
+                    className="w-full h-10 px-3 bg-zinc-900 border border-white/10 rounded-lg text-sm text-white focus:outline-none"
+                  />
+                </div>
               </div>
+
+              {editingAssignment && (
+                <button
+                  type="button"
+                  onClick={() => handleBreakdown(editingAssignment)}
+                  className="w-full py-2 px-3 rounded-lg border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Break down into actionable tasks</span>
+                </button>
+              )}
+
               {/* Attachments Section inside Modal */}
               {editingAssignment && (
                 <div className="space-y-2 border-t border-white/5 pt-4 mt-2">
@@ -679,6 +824,178 @@ export const Assignments: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* AI Task Breakdown Modal */}
+      {breakdownAssignment && (
+        <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md z-50 animate-fade-in-up">
+          <div className="w-full max-w-lg glass-panel rounded-2xl p-6 border border-white/10 shadow-2xl relative">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-lg bg-primary/20 text-primary">
+                    <Sparkles className="w-4 h-4" />
+                  </span>
+                  <h3 className="text-base font-bold text-white">Smart Task Decomposition</h3>
+                </div>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Decompose <span className="text-zinc-200 font-semibold">{breakdownAssignment.title}</span> into manageable daily tasks.
+                </p>
+              </div>
+              <button
+                onClick={() => setBreakdownAssignment(null)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {breakdownSuccessMsg ? (
+              <div className="py-8 text-center space-y-3">
+                <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto">
+                  <Check className="w-6 h-6" />
+                </div>
+                <p className="text-sm font-semibold text-emerald-400">{breakdownSuccessMsg}</p>
+              </div>
+            ) : isDecomposing ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-3 text-center">
+                <RefreshCw className="w-6 h-6 text-primary animate-spin" />
+                <p className="text-xs text-zinc-400">Analyzing assignment & syllabus to break into steps...</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
+                  {subtasks.map((task, idx) => (
+                    <div
+                      key={task.id}
+                      className={`p-3 rounded-xl border transition-all flex items-center gap-3 ${
+                        task.selected
+                          ? 'bg-zinc-900/60 border-primary/30'
+                          : 'bg-zinc-950/40 border-white/5 opacity-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={task.selected}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setSubtasks((prev) =>
+                            prev.map((t, i) => (i === idx ? { ...t, selected: checked } : t))
+                          );
+                        }}
+                        className="w-4 h-4 rounded border-white/10 bg-white/5 text-primary focus:ring-0 cursor-pointer"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <input
+                          type="text"
+                          value={task.title}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSubtasks((prev) =>
+                              prev.map((t, i) => (i === idx ? { ...t, title: val } : t))
+                            );
+                          }}
+                          className="w-full bg-transparent text-xs text-zinc-200 focus:outline-none border-b border-transparent focus:border-white/20 pb-0.5"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded border border-white/5">
+                          <Clock className="w-3 h-3 text-zinc-500" />
+                          <input
+                            type="number"
+                            min="5"
+                            max="180"
+                            step="5"
+                            value={task.estimatedMinutes}
+                            onChange={(e) => {
+                              const mins = parseInt(e.target.value) || 30;
+                              setSubtasks((prev) =>
+                                prev.map((t, i) => (i === idx ? { ...t, estimatedMinutes: mins } : t))
+                              );
+                            }}
+                            className="w-8 bg-transparent text-[11px] text-zinc-300 text-center focus:outline-none"
+                          />
+                          <span className="text-[10px] text-zinc-500">m</span>
+                        </div>
+                        <select
+                          value={task.priority}
+                          onChange={(e) => {
+                            const p = e.target.value as any;
+                            setSubtasks((prev) =>
+                              prev.map((t, i) => (i === idx ? { ...t, priority: p } : t))
+                            );
+                          }}
+                          className="bg-zinc-900 border border-white/10 rounded px-1.5 py-1 text-[10px] text-zinc-300 focus:outline-none"
+                        >
+                          <option value="LOW">Low</option>
+                          <option value="MEDIUM">Med</option>
+                          <option value="HIGH">High</option>
+                        </select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-zinc-500 border-t border-white/5 pt-3">
+                  <span>
+                    {subtasks.filter((s) => s.selected).length} of {subtasks.length} selected
+                    {' • ~' +
+                      subtasks
+                        .filter((s) => s.selected)
+                        .reduce((acc, curr) => acc + (Number(curr.estimatedMinutes) || 0), 0) +
+                      ' mins total'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubtasks((prev) => [
+                        ...prev,
+                        {
+                          id: `custom-${Date.now()}`,
+                          title: 'New step',
+                          priority: 'MEDIUM',
+                          estimatedMinutes: 30,
+                          selected: true,
+                        },
+                      ]);
+                    }}
+                    className="text-primary hover:underline font-semibold text-[11px]"
+                  >
+                    + Add subtask
+                  </button>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setBreakdownAssignment(null)}
+                    className="flex-1 h-10 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.05] text-zinc-400 hover:text-white text-xs font-semibold transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCreateSubtasks}
+                    disabled={isCreatingTasks || subtasks.filter((s) => s.selected).length === 0}
+                    className="flex-1 h-10 rounded-xl bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary/20"
+                  >
+                    {isCreatingTasks ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Creating Tasks...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckSquare className="w-4 h-4" />
+                        <span>Add to To-Do List</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

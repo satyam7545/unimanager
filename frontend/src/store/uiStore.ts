@@ -1,18 +1,32 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export interface FocusTask {
+  id: string;
+  title: string;
+  subjectName?: string;
+  subjectColor?: string;
+  subjectId?: string | null;
+  estimatedMinutes?: number;
+}
+
 interface UIState {
   sidebarOpen: boolean;
   activeSection: string;
   theme: 'dark' | 'light' | 'system';
   selectedSemester: string;
   quickActionTrigger: 'note' | 'task' | 'assignment' | 'event' | null;
+  commandPaletteOpen: boolean;
+  focusTask: FocusTask | null;
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
   setActiveSection: (section: string) => void;
   setTheme: (theme: 'dark' | 'light' | 'system') => void;
   setSelectedSemester: (semester: string) => void;
   setQuickActionTrigger: (trigger: 'note' | 'task' | 'assignment' | 'event' | null) => void;
+  setCommandPaletteOpen: (open: boolean) => void;
+  toggleCommandPalette: () => void;
+  setFocusTask: (task: FocusTask | null) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -23,6 +37,8 @@ export const useUIStore = create<UIState>()(
       theme: 'dark',
       selectedSemester: 'all',
       quickActionTrigger: null,
+      commandPaletteOpen: false,
+      focusTask: null,
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setActiveSection: (section) => set({ activeSection: section }),
@@ -41,6 +57,9 @@ export const useUIStore = create<UIState>()(
       },
       setSelectedSemester: (semester) => set({ selectedSemester: semester }),
       setQuickActionTrigger: (trigger) => set({ quickActionTrigger: trigger }),
+      setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+      toggleCommandPalette: () => set((state) => ({ commandPaletteOpen: !state.commandPaletteOpen })),
+      setFocusTask: (task) => set({ focusTask: task }),
     }),
     {
       name: 'unimanager-ui-store',

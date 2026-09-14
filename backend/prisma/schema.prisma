@@ -62,6 +62,7 @@ model Subject {
   assignments Assignment[]
   events      Event[]
   resources   Resource[]
+  tasks       Task[]
 
   @@index([userId])
 }
@@ -129,6 +130,7 @@ model Assignment {
   priority    String    @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
   status      String    @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
   deadline    DateTime
+  estimatedHours Float?  @default(2.0)
   subjectId   String?
   subject     Subject?  @relation(fields: [subjectId], references: [id], onDelete: SetNull)
   semester    String?
@@ -172,9 +174,13 @@ model Task {
   project      Project?    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   assignmentId String?
   assignment   Assignment? @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  subjectId    String?
+  subject      Subject?    @relation(fields: [subjectId], references: [id], onDelete: SetNull)
   parentId     String?
   parent       Task?       @relation("SubTasks", fields: [parentId], references: [id], onDelete: Cascade)
   children     Task[]      @relation("SubTasks")
+  estimatedMinutes Int?    @default(30)
+  actualMinutes    Int?
   date         DateTime?
   timeSlot     String?     @default("AFTERNOON") // MORNING, AFTERNOON, NIGHT
   userId       String
@@ -185,6 +191,7 @@ model Task {
   @@index([userId])
   @@index([projectId])
   @@index([assignmentId])
+  @@index([subjectId])
   @@index([parentId])
 }
 
@@ -223,6 +230,7 @@ model Event {
   endAt       DateTime
   color       String   @default("#3B82F6")
   isAllDay    Boolean  @default(false)
+  eventType   String   @default("EVENT") // CLASS, EXAM, STUDY, DEADLINE, EVENT
   subjectId   String?
   subject     Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
   userId      String

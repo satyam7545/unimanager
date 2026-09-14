@@ -12,6 +12,7 @@ export const createAssignmentSchema = z.object({
     deadline: z.string({ required_error: 'Deadline is required' }).datetime('Invalid date format'),
     subjectId: z.string().nullable().optional(),
     semester: z.string().nullable().optional(),
+    estimatedHours: z.number().positive().optional().default(2.0),
   }),
 });
 
@@ -31,5 +32,6 @@ export const updateAssignmentSchema = z.object({
     deadline: z.string().datetime('Invalid date format').optional(),
     subjectId: z.string().nullable().optional(),
     semester: z.string().nullable().optional(),
+    estimatedHours: z.number().positive().optional(),
   }),
 });

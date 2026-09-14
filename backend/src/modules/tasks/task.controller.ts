@@ -80,6 +80,50 @@ export class TaskController {
     }
   };
 
+  focusComplete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) {
+        throw new BadRequestError('User session context missing.');
+      }
+      const { actualMinutes, status } = req.body;
+      const task = await this.service.focusComplete(
+        req.params.id,
+        req.user.userId,
+        actualMinutes,
+        status || 'DONE'
+      );
+      res.status(200).json({
+        status: 'success',
+        message: 'Focus session logged and task updated.',
+        data: { task },
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  reschedule = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user) {
+        throw new BadRequestError('User session context missing.');
+      }
+      const { date, timeSlot } = req.body;
+      const task = await this.service.rescheduleTask(
+        req.params.id,
+        req.user.userId,
+        date,
+        timeSlot
+      );
+      res.status(200).json({
+        status: 'success',
+        message: 'Task rescheduled successfully.',
+        data: { task },
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   delete = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!req.user) {

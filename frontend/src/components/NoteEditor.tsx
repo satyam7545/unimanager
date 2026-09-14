@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { Pin, Star, CheckCircle, CloudLightning, RefreshCw, Eye, Edit3, Tag as TagIcon, Paperclip, Download, Plus, Trash2, Sparkles } from 'lucide-react';
+import { Pin, Star, CheckCircle, CloudLightning, RefreshCw, Eye, Edit3, Tag as TagIcon, Paperclip, Download, Plus, Trash2, Sparkles, Clock, X } from 'lucide-react';
 import { api, API_HOST } from '@/services/api';
 import { useUIStore } from '@/store/uiStore';
 
@@ -21,6 +21,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
   const [editTab, setEditTab] = useState<'write' | 'preview'>('write');
   const [syncState, setSyncState] = useState<'saved' | 'saving' | 'error' | 'idle'>('idle');
   const [isUploading, setIsUploading] = useState(false);
+  const [quizQuestions, setQuizQuestions] = useState<any[] | null>(null);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
+  const [selectedQuizAnswers, setSelectedQuizAnswers] = useState<Record<number, number>>({});
+  const [showQuizResults, setShowQuizResults] = useState(false);
+  const [revisionTaskScheduled, setRevisionTaskScheduled] = useState(false);
 
   const uploadAttachmentMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -76,9 +81,62 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
     queryKey: ['subjects'],
     queryFn: async () => {
       const res = await api.get('/subjects');
-      return res.data.subjects;
+      return res.data?.subjects || [];
     },
   });
+
+  // Fetch subject context for academic linking
+  const { data: subjectContext } = useQuery({
+    queryKey: ['subjectContextForNote', subjectId],
+    queryFn: async () => {
+      if (!subjectId) return null;
+      const res = await api.get(`/subjects/${subjectId}`);
+      return res.data?.subject || null;
+    },
+    enabled: !!subjectId,
+  });
+
+  const scheduleTaskMutation = useMutation({
+    mutationFn: async () => {
+      return api.post('/tasks', {
+        title: `Revise: ${title || 'Lecture Note'}`,
+        status: 'TODO',
+        priority: 'MEDIUM',
+        timeSlot: 'AFTERNOON',
+        date: new Date().toISOString(),
+        subjectId: subjectId || null,
+        estimatedMinutes: 30,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
+      setRevisionTaskScheduled(true);
+      setTimeout(() => setRevisionTaskScheduled(false), 4000);
+    },
+  });
+
+  const handleGenerateQuiz = async () => {
+    if (!content.trim()) return;
+    setIsGeneratingQuiz(true);
+    setQuizQuestions(null);
+    setSelectedQuizAnswers({});
+    setShowQuizResults(false);
+    try {
+      const res = await api.post('/ai/features/quiz', {
+        topic: title || 'Key concepts',
+        content: content.slice(0, 3000),
+        count: 3,
+      });
+      if (res.data?.quiz?.questions) {
+        setQuizQuestions(res.data.quiz.questions);
+      }
+    } catch (e) {
+      console.warn('Quiz generation error:', e);
+    } finally {
+      setIsGeneratingQuiz(false);
+    }
+  };
 
   // 3. Update note mutation
   const updateNoteMutation = useMutation({
@@ -429,6 +487,132 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
           </div>
         </div>
       </div>
+
+      {/* Academic Context Bar */}
+      {subjectContext && (
+        <div className="px-4 py-2 bg-primary/[0.03] border-b border-white/5 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Course Context:</span>
+            <span
+              className="px-2 py-0.5 rounded font-bold text-[11px]"
+              style={{
+                backgroundColor: `${subjectContext.color}20`,
+                color: subjectContext.color,
+              }}
+            >
+              {subjectContext.name}
+            </span>
+            {subjectContext.events?.filter((e: any) => e.eventType === 'EXAM' || e.title.toLowerCase().includes('exam')).slice(0, 1).map((exam: any) => {
+              const days = Math.max(0, Math.ceil((new Date(exam.startAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+              return (
+                <span key={exam.id} className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold flex items-center gap-1">
+                  📅 {exam.title} in {days}d
+                </span>
+              );
+            })}
+            {subjectContext.assignments?.filter((a: any) => a.status !== 'COMPLETED').slice(0, 1).map((ass: any) => (
+              <span key={ass.id} className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 font-semibold flex items-center gap-1">
+                📋 {ass.title}
+              </span>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {revisionTaskScheduled && (
+              <span className="text-[10px] text-emerald-400 font-semibold animate-pulse">
+                ✓ Revision task scheduled
+              </span>
+            )}
+            <button
+              onClick={() => scheduleTaskMutation.mutate()}
+              disabled={scheduleTaskMutation.isPending}
+              className="px-2.5 py-1 rounded bg-white/5 hover:bg-white/10 text-zinc-300 font-semibold text-[10px] flex items-center gap-1 border border-white/10 transition"
+              title="Schedule a 30m revision session for this note"
+            >
+              <Clock className="w-3 h-3 text-emerald-400" />
+              <span>Schedule Revision</span>
+            </button>
+
+            <button
+              onClick={handleGenerateQuiz}
+              disabled={isGeneratingQuiz || !content.trim()}
+              className="px-2.5 py-1 rounded bg-primary/20 hover:bg-primary/30 text-primary-foreground font-semibold text-[10px] flex items-center gap-1 transition"
+              title="Generate 3 self-test practice questions from this note"
+            >
+              <Sparkles className="w-3 h-3 text-primary" />
+              <span>{isGeneratingQuiz ? 'Quizzing...' : 'Quiz Me'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive In-Editor Self-Test Quiz Card */}
+      {quizQuestions && quizQuestions.length > 0 && (
+        <div className="m-4 p-4 rounded-xl bg-primary/5 border border-primary/20 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-primary flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              Quick Comprehension Quiz ({quizQuestions.length} questions)
+            </span>
+            <button onClick={() => setQuizQuestions(null)} className="text-zinc-500 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {quizQuestions.map((q, qIdx) => (
+              <div key={qIdx} className="p-3 rounded-lg bg-zinc-900/60 border border-white/5 space-y-2">
+                <p className="text-xs font-semibold text-white">{qIdx + 1}. {q.question}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {q.options?.map((opt: string, optIdx: number) => {
+                    const isSelected = selectedQuizAnswers[qIdx] === optIdx;
+                    const isCorrect = q.correctIndex === optIdx;
+                    let btnStyle = 'bg-white/5 hover:bg-white/10 text-zinc-300 border-white/5';
+                    if (showQuizResults) {
+                      if (isCorrect) btnStyle = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+                      else if (isSelected) btnStyle = 'bg-rose-500/20 text-rose-300 border-rose-500/30';
+                    } else if (isSelected) {
+                      btnStyle = 'bg-primary/20 text-primary-foreground border-primary/30';
+                    }
+
+                    return (
+                      <button
+                        key={optIdx}
+                        onClick={() => {
+                          if (!showQuizResults) {
+                            setSelectedQuizAnswers((prev) => ({ ...prev, [qIdx]: optIdx }));
+                          }
+                        }}
+                        className={`p-2 rounded text-left text-[11px] font-medium border transition ${btnStyle}`}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end pt-1">
+            {!showQuizResults ? (
+              <button
+                onClick={() => setShowQuizResults(true)}
+                className="px-3 py-1.5 rounded-lg bg-primary text-white font-bold text-xs"
+              >
+                Check Answers
+              </button>
+            ) : (
+              <button
+                onClick={() => setQuizQuestions(null)}
+                className="px-3 py-1.5 rounded-lg bg-white/10 text-zinc-300 font-bold text-xs"
+              >
+                Done Quizzing
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Editing / Preview Content Panel */}
       <div className="flex-1 overflow-y-auto p-6">

@@ -32,6 +32,8 @@ import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/features/auth/store/authStore';
 import { authService } from '@/features/auth/services/auth.service';
 import { api } from '@/services/api';
+import { FocusModal } from '@/components/FocusModal';
+import { CommandPalette } from '@/components/CommandPalette';
 
 // Static nav items — defined outside component to prevent array recreation on every render
 const menuItems = [
@@ -85,7 +87,16 @@ interface MainLayoutProps {
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
-  const { sidebarOpen, activeSection, toggleSidebar, setActiveSection, selectedSemester, setSelectedSemester, setQuickActionTrigger } = useUIStore();
+  const {
+    sidebarOpen,
+    activeSection,
+    toggleSidebar,
+    setActiveSection,
+    selectedSemester,
+    setSelectedSemester,
+    setQuickActionTrigger,
+    setCommandPaletteOpen,
+  } = useUIStore();
   const { user } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
@@ -455,9 +466,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 ))}
               </select>
             </div>
-            {/* Search Trigger */}
+            {/* Global Search Button */}
             <button
-              onClick={() => setSearchOpen(true)}
+              onClick={() => setCommandPaletteOpen(true)}
               className="p-2 text-zinc-400 hover:text-white hover:bg-white/[0.02] rounded-lg transition-colors hidden sm:flex items-center gap-2 border border-white/5 bg-white/[0.01]"
             >
               <Search className="w-4 h-4" />
@@ -1005,6 +1016,36 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           <Plus className="w-6 h-6 transition-transform duration-200" />
         </motion.button>
       </div>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-zinc-950/95 border-t border-white/10 backdrop-blur-xl px-2 py-2 flex items-center justify-around">
+        {[
+          { name: 'Dashboard', icon: LayoutDashboard },
+          { name: 'Planner', icon: CalendarRange },
+          { name: 'Notes', icon: FileText },
+          { name: 'Calendar', icon: CalendarDays },
+          { name: 'Subjects', icon: BookOpen },
+        ].map((item) => {
+          const Icon = item.icon;
+          const isActive = activeSection === item.name;
+          return (
+            <button
+              key={item.name}
+              onClick={() => setActiveSection(item.name)}
+              className={`flex flex-col items-center gap-1 py-1 px-3 rounded-lg transition ${
+                isActive ? 'text-primary' : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              <Icon className="w-5 h-5" />
+              <span className="text-[10px] font-semibold">{item.name}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Global Focus Mode & Command Palette */}
+      <FocusModal />
+      <CommandPalette />
     </div>
   );
 };

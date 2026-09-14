@@ -8,11 +8,12 @@ export interface TaskFilters {
   timeSlot?: string;
   projectId?: string | null;
   assignmentId?: string | null;
+  subjectId?: string | null;
 }
 
 export class TaskRepository {
   async findAllByUserId(userId: string, filters: TaskFilters = {}): Promise<Task[]> {
-    const { dateStart, dateEnd, status, timeSlot, projectId, assignmentId } = filters;
+    const { dateStart, dateEnd, status, timeSlot, projectId, assignmentId, subjectId } = filters;
 
     return prisma.task.findMany({
       where: {
@@ -30,11 +31,13 @@ export class TaskRepository {
           timeSlot ? { timeSlot } : {},
           projectId !== undefined ? { projectId } : {},
           assignmentId !== undefined ? { assignmentId } : {},
+          subjectId !== undefined ? { subjectId } : {},
         ],
       },
       include: {
         project: { select: { id: true, name: true } },
         assignment: { select: { id: true, title: true } },
+        subject: { select: { id: true, name: true, color: true } },
       },
       orderBy: { order: 'asc' },
     });
@@ -46,6 +49,7 @@ export class TaskRepository {
       include: {
         project: { select: { id: true, name: true } },
         assignment: { select: { id: true, title: true } },
+        subject: { select: { id: true, name: true, color: true } },
       },
     });
   }
@@ -60,8 +64,11 @@ export class TaskRepository {
       timeSlot: string;
       projectId?: string | null;
       assignmentId?: string | null;
+      subjectId?: string | null;
       parentId?: string | null;
       columnId?: string;
+      estimatedMinutes?: number | null;
+      actualMinutes?: number | null;
     }
   ): Promise<Task> {
     return prisma.task.create({
@@ -74,12 +81,16 @@ export class TaskRepository {
         timeSlot: data.timeSlot,
         projectId: data.projectId || null,
         assignmentId: data.assignmentId || null,
+        subjectId: data.subjectId || null,
         parentId: data.parentId || null,
         columnId: data.columnId || 'ideas',
+        estimatedMinutes: data.estimatedMinutes ?? 30,
+        actualMinutes: data.actualMinutes ?? null,
       },
       include: {
         project: { select: { id: true, name: true } },
         assignment: { select: { id: true, title: true } },
+        subject: { select: { id: true, name: true, color: true } },
       },
     });
   }
@@ -94,9 +105,12 @@ export class TaskRepository {
       timeSlot?: string;
       projectId?: string | null;
       assignmentId?: string | null;
+      subjectId?: string | null;
       parentId?: string | null;
       order?: number;
       columnId?: string;
+      estimatedMinutes?: number | null;
+      actualMinutes?: number | null;
     }
   ): Promise<Task> {
     return prisma.task.update({
@@ -105,6 +119,7 @@ export class TaskRepository {
       include: {
         project: { select: { id: true, name: true } },
         assignment: { select: { id: true, title: true } },
+        subject: { select: { id: true, name: true, color: true } },
       },
     });
   }

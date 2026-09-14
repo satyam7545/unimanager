@@ -20,13 +20,14 @@ export class SearchController {
             assignments: [],
             projects: [],
             subjects: [],
+            events: [],
           }
         });
         return;
       }
 
-      // Query database in parallel for responsiveness
-      const [notes, tasks, assignments, projects, subjects] = await Promise.all([
+      // Query database in parallel for ultra-fast responsiveness
+      const [notes, tasks, assignments, projects, subjects, events] = await Promise.all([
         prisma.note.findMany({
           where: {
             userId,
@@ -35,16 +36,30 @@ export class SearchController {
               { content: { contains: query } }
             ]
           },
-          take: 5,
-          select: { id: true, title: true }
+          take: 6,
+          select: {
+            id: true,
+            title: true,
+            subject: { select: { id: true, name: true, color: true } },
+            folder: { select: { id: true, name: true } },
+            updatedAt: true,
+          }
         }),
         prisma.task.findMany({
           where: {
             userId,
             title: { contains: query }
           },
-          take: 5,
-          select: { id: true, title: true, status: true, date: true }
+          take: 6,
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            priority: true,
+            date: true,
+            subject: { select: { id: true, name: true, color: true } },
+            assignment: { select: { id: true, title: true } }
+          }
         }),
         prisma.assignment.findMany({
           where: {
@@ -54,8 +69,15 @@ export class SearchController {
               { description: { contains: query } }
             ]
           },
-          take: 5,
-          select: { id: true, title: true, status: true, deadline: true }
+          take: 6,
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            priority: true,
+            deadline: true,
+            subject: { select: { id: true, name: true, color: true } }
+          }
         }),
         prisma.project.findMany({
           where: {
@@ -74,7 +96,26 @@ export class SearchController {
             name: { contains: query }
           },
           take: 5,
-          select: { id: true, name: true, color: true }
+          select: { id: true, name: true, color: true, semester: true }
+        }),
+        prisma.event.findMany({
+          where: {
+            userId,
+            OR: [
+              { title: { contains: query } },
+              { description: { contains: query } }
+            ]
+          },
+          take: 6,
+          select: {
+            id: true,
+            title: true,
+            eventType: true,
+            startAt: true,
+            endAt: true,
+            color: true,
+            subject: { select: { id: true, name: true, color: true } }
+          }
         })
       ]);
 
@@ -86,6 +127,7 @@ export class SearchController {
           assignments,
           projects,
           subjects,
+          events,
         }
       });
     } catch (error) {
