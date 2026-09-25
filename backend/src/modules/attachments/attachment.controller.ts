@@ -3,6 +3,7 @@ import { prisma } from '../../utils/prisma';
 import { BadRequestError, NotFoundError, ForbiddenError } from '../../utils/errors';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 export class AttachmentController {
   upload = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -62,7 +63,8 @@ export class AttachmentController {
       }
 
       // Generate unique file name
-      const uniqueFilename = `${Date.now()}-${req.file.originalname}`;
+      const fileExt = path.extname(req.file.originalname);
+      const uniqueFilename = `${Date.now()}-${crypto.randomBytes(16).toString('hex')}${fileExt}`;
       const filePathOnDisk = path.join(uploadDir, uniqueFilename);
 
       // Write the file to disk

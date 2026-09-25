@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../../utils/prisma';
 import { BadRequestError } from '../../utils/errors';
+import { intelligenceService } from './intelligence.service';
 
 export class DashboardController {
   getSummary = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -44,9 +45,11 @@ export class DashboardController {
       // Perform parallel querying for optimal responsiveness
       const [
         user,
-        todaysTasks,
-        upcomingAssignments,
+        allActiveTasks,
+        allActiveAssignments,
+        allSubjects,
         upcomingEvents,
+        todaysClasses,
         recentProjects,
         taskStats,
         habitStats,
@@ -58,28 +61,24 @@ export class DashboardController {
           where: { id: userId },
           select: { studyStreak: true, name: true }
         }),
-        // 2. Tasks scheduled for today
+        // 2. All active tasks with subject/assignment relationships
         prisma.task.findMany({
           where: {
             userId,
-            status: { not: 'DONE' },
-            OR: [
-              { date: { gte: startOfToday, lte: endOfToday } },
-              { status: 'IN_PROGRESS' }
-            ]
+            status: { not: 'DONE' }
           },
           include: {
-            project: { select: { id: true, name: true } },
-            assignment: { select: { id: true, title: true } }
+            subject: { select: { id: true, name: true, color: true } },
+            assignment: { select: { id: true, title: true, deadline: true, subjectId: true } },
+            project: { select: { id: true, name: true } }
           },
-          orderBy: { priority: 'desc' }
+          orderBy: { updatedAt: 'desc' }
         }),
-        // 3. Upcoming assignments (deadlines)
+        // 3. All active assignments
         prisma.assignment.findMany({
           where: {
             userId,
             status: { not: 'COMPLETED' },
-            deadline: { gte: new Date() },
             ...(semester && {
               OR: [
                 { semester: String(semester) },
@@ -90,28 +89,50 @@ export class DashboardController {
           include: {
             subject: { select: { id: true, name: true, color: true } }
           },
-          orderBy: { deadline: 'asc' },
-          take: 5
+          orderBy: { deadline: 'asc' }
         }),
-        // 4. Upcoming events (exams / study sessions)
+        // 4. Subjects with their assignments, tasks, and events for health analysis
+        prisma.subject.findMany({
+          where: {
+            userId,
+            ...(semester && { semester: String(semester) })
+          },
+          include: {
+            assignments: true,
+            tasks: true,
+            events: true,
+          }
+        }),
+        // 5. Upcoming events (exams, classes, etc.)
         prisma.event.findMany({
           where: {
             userId,
-            startAt: { gte: new Date() }
+            startAt: { gte: startOfToday }
           },
           include: {
             subject: { select: { id: true, name: true, color: true } }
           },
           orderBy: { startAt: 'asc' },
-          take: 5
+          take: 15
         }),
-        // 5. Recent projects
+        // 6. Today's events/classes specifically
+        prisma.event.findMany({
+          where: {
+            userId,
+            startAt: { gte: startOfToday, lte: endOfToday }
+          },
+          include: {
+            subject: { select: { id: true, name: true, color: true } }
+          },
+          orderBy: { startAt: 'asc' }
+        }),
+        // 7. Recent projects
         prisma.project.findMany({
           where: { userId },
           orderBy: { updatedAt: 'desc' },
           take: 3
         }),
-        // 6. Task counts for productivity calculations (past 7 days)
+        // 8. Task counts for productivity calculations (past 7 days)
         prisma.task.groupBy({
           by: ['status'],
           where: {
@@ -120,7 +141,7 @@ export class DashboardController {
           },
           _count: { _all: true }
         }),
-        // 7. Habit streaks / count
+        // 9. Habit streaks / count
         prisma.habit.findMany({
           where: { userId },
           include: {
@@ -129,7 +150,7 @@ export class DashboardController {
             }
           }
         }),
-        // 8. Count of completed tasks in the previous week (7 to 14 days ago)
+        // 10. Count of completed tasks in previous week
         prisma.task.count({
           where: {
             userId,
@@ -137,14 +158,53 @@ export class DashboardController {
             updatedAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo }
           }
         }),
-        // 9. Day completed counts (past 7 days)
+        // 11. Day completed counts (past 7 days)
         ...dayQueries
       ]);
+
+      // Filter upcoming exams
+      const upcomingExams = upcomingEvents.filter(e => intelligenceService.isExamEvent(e));
+
+      // Calculate priority algorithms
+      const prioritizedTasks = intelligenceService.prioritizeTasks(allActiveTasks, upcomingExams);
+      const prioritizedAssignments = intelligenceService.prioritizeAssignments(allActiveAssignments, upcomingExams);
+
+      // What should I work on right now? recommendation
+      const whatToWorkOnNow = intelligenceService.getWhatToWorkOnNow(
+        prioritizedTasks,
+        prioritizedAssignments,
+        upcomingExams
+      );
+
+      // Semester Health
+      const semesterHealth = intelligenceService.getSemesterHealth(allSubjects);
+
+      // Workload vs Capacity Analysis
+      const workloadMetrics = intelligenceService.getWorkloadAnalysis(
+        allActiveTasks,
+        allActiveAssignments,
+        upcomingEvents
+      );
+
+      // Overdue Recovery List
+      const overdueItems = intelligenceService.getOverdueRecovery(
+        allActiveTasks,
+        allActiveAssignments
+      );
+
+      // Tasks scheduled for today specifically (or in-progress)
+      const todaysTasks = prioritizedTasks.filter(t => {
+        if (t.status === 'IN_PROGRESS') return true;
+        if (t.date) {
+          const tDate = new Date(t.date);
+          return tDate >= startOfToday && tDate <= endOfToday;
+        }
+        return false;
+      });
 
       // Calculate Productivity Score based on completed tasks vs total tasks
       let completedCount = 0;
       let totalCount = 0;
-      
       taskStats.forEach((group) => {
         const count = group._count._all;
         totalCount += count;
@@ -152,14 +212,13 @@ export class DashboardController {
           completedCount += count;
         }
       });
-
       const productivityScore = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 100;
 
-      // Calculate Weekly Study Hours: count of completed tasks * 1.5h
+      // Calculate Weekly Study Hours: actual completed task minutes or fallback
       const taskStudyHrs = completedCount * 1.5;
       const weeklyStudyHours = Number(taskStudyHrs.toFixed(1)) || 0.0;
 
-      // Calculate daily study hours for the past 7 days using the query results
+      // Calculate daily study hours for the past 7 days using query results
       const dailyStudyHours = dayCompletedCounts.map((count, index) => {
         const d = new Date();
         d.setDate(d.getDate() - (6 - index));
@@ -170,7 +229,7 @@ export class DashboardController {
         };
       });
 
-      // Calculate week-over-week trend percentage
+      // Week-over-week trend
       let studyHoursTrend = 0;
       const thisWeekCompleted = completedCount;
       const lastWeekCompleted = lastWeekCompletedCount;
@@ -186,8 +245,26 @@ export class DashboardController {
           name: user?.name || 'Student',
           studyStreak: user?.studyStreak || 0,
           todaysTasks,
-          upcomingAssignments,
-          upcomingEvents,
+          prioritizedTasks: prioritizedTasks.slice(0, 10),
+          allActiveTasksCount: allActiveTasks.length,
+          upcomingAssignments: prioritizedAssignments.slice(0, 5),
+          allActiveAssignmentsCount: allActiveAssignments.length,
+          upcomingEvents: upcomingEvents.slice(0, 5),
+          todaysClasses,
+          upcomingExams: upcomingExams.map(ex => {
+            const daysAway = Math.max(0, Math.ceil((new Date(ex.startAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+            return {
+              id: ex.id,
+              title: ex.title,
+              date: ex.startAt,
+              daysAway,
+              subject: ex.subject
+            };
+          }),
+          whatToWorkOnNow,
+          semesterHealth,
+          workloadMetrics,
+          overdueItems,
           recentProjects,
           weeklyStudyHours,
           productivityScore,

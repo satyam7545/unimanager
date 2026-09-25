@@ -134,6 +134,7 @@ export const Projects: React.FC = () => {
                     {proj.name}
                   </h3>
                   {proj.githubUrl && /^https?:\/\//i.test(proj.githubUrl) && (
+                  {proj.githubUrl && (proj.githubUrl.startsWith('http://') || proj.githubUrl.startsWith('https://')) && (
                     <a
                       href={proj.githubUrl}
                       target="_blank"

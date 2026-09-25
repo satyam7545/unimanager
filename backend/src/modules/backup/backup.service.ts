@@ -101,9 +101,9 @@ export class BackupService {
 
       // 2. RE-CREATE independent parent tables
       // Re-create AI Settings
-      for (const settings of aiSettings) {
-        await tx.aISetting.create({
-          data: {
+      if (aiSettings.length > 0) {
+        await tx.aISetting.createMany({
+          data: aiSettings.map((settings: any) => ({
             id: settings.id,
             provider: settings.provider,
             apiKey: settings.apiKey,
@@ -113,67 +113,67 @@ export class BackupService {
             maxTokens: settings.maxTokens,
             systemPrompt: settings.systemPrompt,
             userId,
-          },
+          })),
         });
       }
 
       // Re-create Notifications
-      for (const notif of notifications) {
-        await tx.notification.create({
-          data: {
+      if (notifications.length > 0) {
+        await tx.notification.createMany({
+          data: notifications.map((notif: any) => ({
             id: notif.id,
             title: notif.title,
             message: notif.message,
             isRead: notif.isRead,
             userId,
             createdAt: new Date(notif.createdAt),
-          },
+          })),
         });
       }
 
       // Re-create Course Subjects
-      for (const sub of subjects) {
-        await tx.subject.create({
-          data: {
+      if (subjects.length > 0) {
+        await tx.subject.createMany({
+          data: subjects.map((sub: any) => ({
             id: sub.id,
             name: sub.name,
             color: sub.color,
             userId,
             createdAt: new Date(sub.createdAt),
-          },
+          })),
         });
       }
 
       // Re-create Folders (Pass 1: Insert without parentId to satisfy constraints)
-      for (const fold of folders) {
-        await tx.folder.create({
-          data: {
+      if (folders.length > 0) {
+        await tx.folder.createMany({
+          data: folders.map((fold: any) => ({
             id: fold.id,
             name: fold.name,
             parentId: null,
             userId,
             createdAt: new Date(fold.createdAt),
-          },
+          })),
         });
       }
 
       // Re-create Tags
-      for (const t of tags) {
-        await tx.tag.create({
-          data: {
+      if (tags.length > 0) {
+        await tx.tag.createMany({
+          data: tags.map((t: any) => ({
             id: t.id,
             name: t.name,
             color: t.color,
             userId,
             createdAt: new Date(t.createdAt),
-          },
+          })),
         });
       }
 
       // Re-create Projects
-      for (const proj of projects) {
-        await tx.project.create({
-          data: {
+      if (projects.length > 0) {
+        await tx.project.createMany({
+          data: projects.map((proj: any) => ({
             id: proj.id,
             name: proj.name,
             description: proj.description,
@@ -181,14 +181,14 @@ export class BackupService {
             progress: proj.progress,
             userId,
             createdAt: new Date(proj.createdAt),
-          },
+          })),
         });
       }
 
       // Re-create Habits & Logs
-      for (const h of habits) {
-        await tx.habit.create({
-          data: {
+      if (habits.length > 0) {
+        await tx.habit.createMany({
+          data: habits.map((h: any) => ({
             id: h.id,
             name: h.name,
             icon: h.icon,
@@ -196,26 +196,30 @@ export class BackupService {
             target: h.target,
             userId,
             createdAt: new Date(h.createdAt),
-          },
+          })),
         });
 
-        for (const log of h.logs || []) {
-          await tx.habitLog.create({
-            data: {
-              id: log.id,
-              habitId: h.id,
-              completedAt: new Date(log.completedAt),
-              value: log.value,
-              createdAt: new Date(log.createdAt),
-            },
+        const allHabitLogs = habits.flatMap((h: any) =>
+          (h.logs || []).map((log: any) => ({
+            id: log.id,
+            habitId: h.id,
+            completedAt: new Date(log.completedAt),
+            value: log.value,
+            createdAt: new Date(log.createdAt),
+          }))
+        );
+
+        if (allHabitLogs.length > 0) {
+          await tx.habitLog.createMany({
+            data: allHabitLogs,
           });
         }
       }
 
       // Re-create Assignments
-      for (const ass of assignments) {
-        await tx.assignment.create({
-          data: {
+      if (assignments.length > 0) {
+        await tx.assignment.createMany({
+          data: assignments.map((ass: any) => ({
             id: ass.id,
             title: ass.title,
             description: ass.description,
@@ -225,14 +229,14 @@ export class BackupService {
             subjectId: ass.subjectId,
             userId,
             createdAt: new Date(ass.createdAt),
-          },
+          })),
         });
       }
 
       // Re-create Events
-      for (const ev of events) {
-        await tx.event.create({
-          data: {
+      if (events.length > 0) {
+        await tx.event.createMany({
+          data: events.map((ev: any) => ({
             id: ev.id,
             title: ev.title,
             description: ev.description,
@@ -243,14 +247,14 @@ export class BackupService {
             subjectId: ev.subjectId,
             userId,
             createdAt: new Date(ev.createdAt),
-          },
+          })),
         });
       }
 
       // Re-create Resources
-      for (const r of resources) {
-        await tx.resource.create({
-          data: {
+      if (resources.length > 0) {
+        await tx.resource.createMany({
+          data: resources.map((r: any) => ({
             id: r.id,
             title: r.title,
             type: r.type,
@@ -258,7 +262,7 @@ export class BackupService {
             subjectId: r.subjectId,
             userId,
             createdAt: new Date(r.createdAt),
-          },
+          })),
         });
       }
 
@@ -284,9 +288,9 @@ export class BackupService {
       }
 
       // Re-create Attachments
-      for (const att of attachments) {
-        await tx.attachment.create({
-          data: {
+      if (attachments.length > 0) {
+        await tx.attachment.createMany({
+          data: attachments.map((att: any) => ({
             id: att.id,
             fileName: att.fileName,
             fileType: att.fileType,
@@ -297,14 +301,14 @@ export class BackupService {
             assignmentId: att.assignmentId,
             userId,
             createdAt: new Date(att.createdAt),
-          },
+          })),
         });
       }
 
       // Re-create Tasks (Pass 1: Insert setting parentId to null to prevent self-reference block)
-      for (const task of tasks) {
-        await tx.task.create({
-          data: {
+      if (tasks.length > 0) {
+        await tx.task.createMany({
+          data: tasks.map((task: any) => ({
             id: task.id,
             title: task.title,
             status: task.status,
@@ -318,7 +322,7 @@ export class BackupService {
             timeSlot: task.timeSlot,
             userId,
             createdAt: new Date(task.createdAt),
-          },
+          })),
         });
       }
 

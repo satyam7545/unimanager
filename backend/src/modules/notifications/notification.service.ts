@@ -39,16 +39,28 @@ export class NotificationService {
       },
     });
 
-    for (const assignment of upcomingAssignments) {
-      const title = `Assignment Reminder: ${assignment.title}`;
-      const existing = await this.repository.findNotificationByTitle(userId, title);
-      if (!existing) {
-        const deadlineStr = new Date(assignment.deadline).toLocaleString();
-        await this.repository.createNotification(
-          userId,
-          title,
-          `The assignment "${assignment.title}" is due in less than 24 hours! Deadline: ${deadlineStr}. Make sure to complete and submit it.`
-        );
+    if (upcomingAssignments.length > 0) {
+      const assignmentTitles = upcomingAssignments.map((a) => `Assignment Reminder: ${a.title}`);
+      const existingAssignmentNotifs = await this.repository.findNotificationsByTitles(userId, assignmentTitles);
+      const existingAssignmentTitles = new Set(existingAssignmentNotifs.map((n) => n.title));
+
+      const newAssignmentNotifs = [];
+      for (const assignment of upcomingAssignments) {
+        const title = `Assignment Reminder: ${assignment.title}`;
+        if (!existingAssignmentTitles.has(title)) {
+          const deadlineStr = new Date(assignment.deadline).toLocaleString();
+          newAssignmentNotifs.push({
+            userId,
+            title,
+            message: `The assignment "${assignment.title}" is due in less than 24 hours! Deadline: ${deadlineStr}. Make sure to complete and submit it.`,
+            isRead: false,
+          });
+          existingAssignmentTitles.add(title);
+        }
+      }
+
+      if (newAssignmentNotifs.length > 0) {
+        await this.repository.createManyNotifications(newAssignmentNotifs);
       }
     }
 
@@ -68,16 +80,28 @@ export class NotificationService {
       exam.title.toLowerCase().includes('exam')
     );
 
-    for (const exam of upcomingExams) {
-      const title = `Exam Reminder: ${exam.title}`;
-      const existing = await this.repository.findNotificationByTitle(userId, title);
-      if (!existing) {
-        const timeStr = new Date(exam.startAt).toLocaleString();
-        await this.repository.createNotification(
-          userId,
-          title,
-          `Your exam "${exam.title}" is starting in less than 48 hours! Date/Time: ${timeStr}. Review your notes and prepare.`
-        );
+    if (upcomingExams.length > 0) {
+      const examTitles = upcomingExams.map((e) => `Exam Reminder: ${e.title}`);
+      const existingExamNotifs = await this.repository.findNotificationsByTitles(userId, examTitles);
+      const existingExamTitles = new Set(existingExamNotifs.map((n) => n.title));
+
+      const newExamNotifs = [];
+      for (const exam of upcomingExams) {
+        const title = `Exam Reminder: ${exam.title}`;
+        if (!existingExamTitles.has(title)) {
+          const timeStr = new Date(exam.startAt).toLocaleString();
+          newExamNotifs.push({
+            userId,
+            title,
+            message: `Your exam "${exam.title}" is starting in less than 48 hours! Date/Time: ${timeStr}. Review your notes and prepare.`,
+            isRead: false,
+          });
+          existingExamTitles.add(title);
+        }
+      }
+
+      if (newExamNotifs.length > 0) {
+        await this.repository.createManyNotifications(newExamNotifs);
       }
     }
 
@@ -102,28 +126,29 @@ export class NotificationService {
       },
     });
 
-    for (const habit of dailyHabits) {
-      const isCompletedToday = habit.logs.length >= habit.target;
-      if (!isCompletedToday) {
-        const title = `Habit Reminder: ${habit.name}`;
-        // Verify if a notification was already sent today for this habit
-        const existing = await prisma.notification.findFirst({
-          where: {
-            userId,
-            title,
-            createdAt: {
-              gte: startOfToday,
-            },
-          },
-        });
+    const incompleteHabits = dailyHabits.filter(habit => habit.logs.length < habit.target);
 
-        if (!existing) {
-          await this.repository.createNotification(
+    if (incompleteHabits.length > 0) {
+      const habitTitles = incompleteHabits.map((h) => `Habit Reminder: ${h.name}`);
+      const existingHabitNotifs = await this.repository.findNotificationsByTitles(userId, habitTitles, startOfToday);
+      const existingHabitTitles = new Set(existingHabitNotifs.map((n) => n.title));
+
+      const newHabitNotifs = [];
+      for (const habit of incompleteHabits) {
+        const title = `Habit Reminder: ${habit.name}`;
+        if (!existingHabitTitles.has(title)) {
+          newHabitNotifs.push({
             userId,
             title,
-            `Remember to log your daily target for "${habit.name}" today to protect your streak!`
-          );
+            message: `Remember to log your daily target for "${habit.name}" today to protect your streak!`,
+            isRead: false,
+          });
+          existingHabitTitles.add(title);
         }
+      }
+
+      if (newHabitNotifs.length > 0) {
+        await this.repository.createManyNotifications(newHabitNotifs);
       }
     }
   }

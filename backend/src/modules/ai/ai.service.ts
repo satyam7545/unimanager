@@ -125,16 +125,13 @@ export class AIService {
     // Select last 10 messages to keep context window clean
     const recentHistory = rawHistory.slice(-10);
 
-    // 4. Retrieve RAG context if enabled
-    const currentDate = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'long' });
-    let combinedSystemPrompt = `${systemPrompt}\n\n[CURRENT DATE & TIME: ${currentDate}]`;
-    let ragContext = '';
-    if (includeRag) {
-      ragContext = await this.extractRagContext(userId, content);
-      if (ragContext) {
-        combinedSystemPrompt += `\n\n[CONTEXT FROM THE USER'S WORKSPACE (Use this to answer questions accurately and specifically):]\n${ragContext}`;
-      }
-    }
+    // 4. Retrieve RAG context and compile authoritative workspace system prompt
+    const { combinedSystemPrompt, ragContext } = await this.buildWorkspaceSystemPrompt(
+      userId,
+      systemPrompt,
+      content,
+      includeRag
+    );
 
     // 5. Call AI Endpoint
     let assistantReply = '';
@@ -206,18 +203,15 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
     // Select last 10 messages to keep context window clean
     const recentHistory = rawHistory.slice(-10);
 
-    // 4. Retrieve RAG context if enabled
-    const currentDate = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'long' });
-    let combinedSystemPrompt = `${systemPrompt}\n\n[CURRENT DATE & TIME: ${currentDate}]`;
-    let ragContext = '';
-    if (includeRag) {
-      ragContext = await this.extractRagContext(userId, content);
-      if (ragContext) {
-        combinedSystemPrompt += `\n\n[CONTEXT FROM THE USER'S WORKSPACE (Use this to answer questions accurately and specifically):]\n${ragContext}`;
-        if (onContext) {
-          onContext(ragContext);
-        }
-      }
+    // 4. Retrieve RAG context and compile authoritative workspace system prompt
+    const { combinedSystemPrompt, ragContext } = await this.buildWorkspaceSystemPrompt(
+      userId,
+      systemPrompt,
+      content,
+      includeRag
+    );
+    if (ragContext && onContext) {
+      onContext(ragContext);
     }
 
     // 5. Stream LLM Provider completions
@@ -260,40 +254,133 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
     return this.aiRepository.createMessage(conversationId, 'ASSISTANT', assistantReply);
   }
 
+  // Build Authoritative, Workspace-Grounded System Prompt
+  private async buildWorkspaceSystemPrompt(
+    userId: string,
+    customSystemPrompt: string | undefined,
+    userPrompt: string,
+    includeRag: boolean
+  ): Promise<{ combinedSystemPrompt: string; ragContext: string }> {
+    const currentDate = new Date().toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'long' });
+
+    // Fetch user and workspace ground truth
+    const [user, subjects, noteCount, taskCount, assignmentCount, upcomingExams, todaysClasses] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
+      prisma.subject.findMany({ where: { userId }, select: { name: true, semester: true } }),
+      prisma.note.count({ where: { userId } }),
+      prisma.task.count({ where: { userId, status: { not: 'DONE' } } }),
+      prisma.assignment.count({ where: { userId, status: { not: 'COMPLETED' } } }),
+      prisma.event.findMany({
+        where: {
+          userId,
+          OR: [{ eventType: 'EXAM' }, { title: { contains: 'exam' } }],
+          startAt: { gte: new Date() }
+        },
+        take: 3,
+        orderBy: { startAt: 'asc' },
+        select: { title: true, startAt: true }
+      }),
+      prisma.event.findMany({
+        where: {
+          userId,
+          startAt: {
+            gte: new Date(new Date().setHours(0, 0, 0, 0)),
+            lte: new Date(new Date().setHours(23, 59, 59, 999))
+          }
+        },
+        select: { title: true, startAt: true }
+      })
+    ]);
+
+    const studentName = user?.name || 'Student';
+    const subjectsList = subjects.length > 0
+      ? subjects.map(s => `${s.name} (Semester ${s.semester || 'General'})`).join(', ')
+      : 'None (0 subjects created yet)';
+
+    const examsList = upcomingExams.length > 0
+      ? upcomingExams.map(e => `${e.title} on ${e.startAt.toISOString().split('T')[0]}`).join(', ')
+      : 'None scheduled';
+
+    const classesList = todaysClasses.length > 0
+      ? todaysClasses.map(c => c.title).join(', ')
+      : 'None scheduled for today';
+
+    let ragContext = '';
+    if (includeRag) {
+      ragContext = await this.extractRagContext(userId, userPrompt);
+    }
+
+    const basePrompt = (customSystemPrompt && customSystemPrompt.trim().length > 0)
+      ? customSystemPrompt
+      : 'You are UniManager Assistant, a helpful AI tutor and intelligent student operating system companion.';
+
+    const combinedSystemPrompt = `${basePrompt}
+
+[CURRENT DATE & TIME: ${currentDate}]
+
+[LIVE WORKSPACE SNAPSHOT]
+You are the built-in, native AI assistant operating directly inside this student's UniManager workspace. You have live visibility into their account:
+- Student Name: ${studentName}
+- Course Subjects Enrolled (${subjects.length}): ${subjectsList}
+- Active Planner Tasks: ${taskCount} pending
+- Active Coursework Assignments: ${assignmentCount} pending
+- Total Study Notes: ${noteCount} notes saved
+- Upcoming Exams: ${examsList}
+- Today's Classes & Events: ${classesList}
+
+[CRITICAL DIRECTIVES FOR WORKSPACE & ACCOUNT INQUIRIES]
+1. You HAVE direct access to this student's real-time UniManager workspace data via the snapshot above and the retrieved context below.
+2. NEVER say "I do not have direct access to your personal UniManager workspace", "I cannot check your account or files", or tell the student to "check your actual UniManager account directly". YOU ARE THE NATIVE UNIMANAGER ASSISTANT.
+3. When the user asks about their subjects, tasks, assignments, notes, or schedule:
+   - Always refer directly to the live data above.
+   - If they have 0 items (for example, 0 subjects created), answer clearly, warmly, and helpfully:
+     "No, you haven't created any subjects in UniManager yet. You can create one anytime by heading to the Subjects section in the navigation menu or pressing Ctrl+K!"
+   - If they have items, list them accurately with relevant details.
+4. Always act as an encouraging, capable, and deeply integrated university copilot.${ragContext ? `\n\n[RETRIEVED WORKSPACE CONTEXT]\n${ragContext}` : ''}`;
+
+    return { combinedSystemPrompt, ragContext };
+  }
+
   // Local RAG Search Context Extraction
   private async extractRagContext(userId: string, prompt: string): Promise<string> {
     const keywords = this.extractKeywords(prompt);
 
     const lowerPrompt = prompt.toLowerCase();
+    const wantsSubjects = lowerPrompt.includes('subject') || lowerPrompt.includes('course') || lowerPrompt.includes('class') || lowerPrompt.includes('syllabus');
     const wantsAssignments = lowerPrompt.includes('assignment') || lowerPrompt.includes('homework') || lowerPrompt.includes('due') || lowerPrompt.includes('deadline');
     const wantsTasks = lowerPrompt.includes('task') || lowerPrompt.includes('todo') || lowerPrompt.includes('planner') || lowerPrompt.includes('plan');
     const wantsNotes = lowerPrompt.includes('note') || lowerPrompt.includes('lecture') || lowerPrompt.includes('obsidian') || lowerPrompt.includes('study');
     const wantsProjects = lowerPrompt.includes('project') || lowerPrompt.includes('github') || lowerPrompt.includes('git') || lowerPrompt.includes('kanban');
-    const wantsEvents = lowerPrompt.includes('event') || lowerPrompt.includes('calendar') || lowerPrompt.includes('schedule') || lowerPrompt.includes('exam') || lowerPrompt.includes('class') || lowerPrompt.includes('session');
+    const wantsEvents = lowerPrompt.includes('event') || lowerPrompt.includes('calendar') || lowerPrompt.includes('schedule') || lowerPrompt.includes('exam') || lowerPrompt.includes('session');
     const wantsHabits = lowerPrompt.includes('habit') || lowerPrompt.includes('routine') || lowerPrompt.includes('streak');
+    const wantsOverview = lowerPrompt.includes('workspace') || lowerPrompt.includes('unimanager') || lowerPrompt.includes('have i') || lowerPrompt.includes('do i have') || lowerPrompt.includes('what do i have') || lowerPrompt.includes('status') || lowerPrompt.includes('overview') || lowerPrompt.includes('summary');
 
     let contextStr = '';
 
-    // Fetch and format User's Course Subjects list
+    // 1. Course Subjects
     const subjects = await prisma.subject.findMany({
       where: { userId },
       select: { name: true, color: true, semester: true }
     });
 
-    if (subjects.length > 0) {
+    if (wantsSubjects || wantsOverview || subjects.length > 0) {
       contextStr += '\n--- YOUR COURSE SUBJECTS ---\n';
-      subjects.forEach(s => {
-        contextStr += `- Subject: ${s.name} (Semester: ${s.semester || 'General'})\n`;
-      });
+      if (subjects.length > 0) {
+        subjects.forEach(s => {
+          contextStr += `- Subject: ${s.name} (Semester: ${s.semester || 'General'})\n`;
+        });
+      } else {
+        contextStr += `Status: You currently have NO course subjects created in UniManager (0 subjects).\n`;
+      }
     }
 
-    // Search Notes
-    const notesToFetch = wantsNotes ? 5 : (keywords.length > 0 ? 3 : 0);
+    // 2. Study Notes
+    const notesToFetch = wantsNotes ? 5 : (wantsOverview ? 3 : (keywords.length > 0 ? 3 : 0));
     if (notesToFetch > 0) {
       const matchingNotes = await prisma.note.findMany({
         where: {
           userId,
-          OR: keywords.length > 0 ? [
+          OR: keywords.length > 0 && !wantsOverview ? [
             ...keywords.map(kw => ({ title: { contains: kw } })),
             ...keywords.map(kw => ({ content: { contains: kw } })),
             ...keywords.map(kw => ({ subject: { name: { contains: kw } } }))
@@ -308,19 +395,21 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
         contextStr += '\n--- RELATED NOTES ---\n';
         matchingNotes.forEach(n => {
           contextStr += `Note: ${n.title} (Subject: ${n.subject?.name || 'General'})\n`;
-          contextStr += `Content: ${n.content.substring(0, 3000)}${n.content.length > 3000 ? '...' : ''}\n\n`;
+          contextStr += `Content: ${n.content.substring(0, 1500)}${n.content.length > 1500 ? '...' : ''}\n\n`;
         });
+      } else if (wantsNotes) {
+        contextStr += '\n--- YOUR STUDY NOTES ---\nStatus: No study notes found matching your search.\n';
       }
     }
 
-    // Search Assignments
-    const assignmentsToFetch = wantsAssignments ? 5 : (keywords.length > 0 ? 3 : 0);
+    // 3. Assignments
+    const assignmentsToFetch = wantsAssignments ? 8 : (wantsOverview ? 5 : (keywords.length > 0 ? 3 : 0));
     if (assignmentsToFetch > 0) {
       const matchingAssignments = await prisma.assignment.findMany({
         where: {
           userId,
-          status: wantsAssignments && keywords.length === 0 ? { not: 'COMPLETED' } : undefined,
-          OR: keywords.length > 0 ? [
+          status: (wantsAssignments || wantsOverview) && keywords.length === 0 ? { not: 'COMPLETED' } : undefined,
+          OR: keywords.length > 0 && !wantsOverview ? [
             ...keywords.map(kw => ({ title: { contains: kw } })),
             ...keywords.map(kw => ({ description: { contains: kw } })),
             ...keywords.map(kw => ({ subject: { name: { contains: kw } } }))
@@ -337,16 +426,18 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
           contextStr += `- Assignment: ${a.title} | Status: ${a.status} | Priority: ${a.priority} | Due: ${a.deadline.toISOString().split('T')[0]} | Subject: ${a.subject?.name || 'General'}\n`;
           if (a.description) contextStr += `  Description: ${a.description}\n`;
         });
+      } else if (wantsAssignments) {
+        contextStr += '\n--- YOUR ASSIGNMENTS ---\nStatus: No active assignments found in your workspace (0 pending).\n';
       }
     }
 
-    // Search Projects
-    const projectsToFetch = wantsProjects ? 5 : (keywords.length > 0 ? 3 : 0);
+    // 4. Projects
+    const projectsToFetch = wantsProjects ? 5 : (wantsOverview ? 3 : (keywords.length > 0 ? 3 : 0));
     if (projectsToFetch > 0) {
       const matchingProjects = await prisma.project.findMany({
         where: {
           userId,
-          OR: keywords.length > 0 ? [
+          OR: keywords.length > 0 && !wantsOverview ? [
             ...keywords.map(kw => ({ name: { contains: kw } })),
             ...keywords.map(kw => ({ description: { contains: kw } }))
           ] : undefined,
@@ -364,40 +455,43 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
       }
     }
 
-    // Search Tasks / Planner items
-    const tasksToFetch = wantsTasks ? 10 : (keywords.length > 0 ? 5 : 0);
+    // 5. Tasks / Planner items
+    const tasksToFetch = wantsTasks ? 10 : (wantsOverview ? 5 : (keywords.length > 0 ? 5 : 0));
     if (tasksToFetch > 0) {
       const matchingTasks = await prisma.task.findMany({
         where: {
           userId,
-          status: wantsTasks && keywords.length === 0 ? { not: 'DONE' } : undefined,
-          OR: keywords.length > 0 ? keywords.map(kw => ({ title: { contains: kw } })) : undefined,
+          status: (wantsTasks || wantsOverview) && keywords.length === 0 ? { not: 'DONE' } : undefined,
+          OR: keywords.length > 0 && !wantsOverview ? keywords.map(kw => ({ title: { contains: kw } })) : undefined,
         },
         orderBy: { updatedAt: 'desc' },
         take: tasksToFetch,
+        include: { subject: true },
       });
 
       if (matchingTasks.length > 0) {
         contextStr += '\n--- RELATED PLANNER TASKS ---\n';
         matchingTasks.forEach(t => {
           const dateStr = t.date ? ` | Scheduled: ${t.date.toISOString().split('T')[0]}` : '';
-          contextStr += `- [${t.status === 'DONE' ? 'x' : ' '}] ${t.title} (Status: ${t.status} | Priority: ${t.priority}${dateStr})\n`;
+          contextStr += `- [${t.status === 'DONE' ? 'x' : ' '}] ${t.title} (Status: ${t.status} | Priority: ${t.priority}${dateStr}${t.subject ? ` | Subject: ${t.subject.name}` : ''})\n`;
         });
+      } else if (wantsTasks) {
+        contextStr += '\n--- YOUR PLANNER TASKS ---\nStatus: No pending tasks found in your planner.\n';
       }
     }
 
-    // Search Events / Calendar items
-    const eventsToFetch = wantsEvents ? 10 : (keywords.length > 0 ? 5 : 0);
+    // 6. Events / Calendar items
+    const eventsToFetch = wantsEvents ? 10 : (wantsOverview ? 4 : (keywords.length > 0 ? 5 : 0));
     if (eventsToFetch > 0) {
       const matchingEvents = await prisma.event.findMany({
         where: {
           userId,
-          OR: keywords.length > 0 ? [
+          OR: keywords.length > 0 && !wantsOverview ? [
             ...keywords.map(kw => ({ title: { contains: kw } })),
             ...keywords.map(kw => ({ description: { contains: kw } })),
             ...keywords.map(kw => ({ subject: { name: { contains: kw } } }))
           ] : undefined,
-          startAt: wantsEvents && keywords.length === 0 ? { gte: new Date() } : undefined,
+          startAt: (wantsEvents || wantsOverview) && keywords.length === 0 ? { gte: new Date() } : undefined,
         },
         orderBy: { startAt: 'asc' },
         take: eventsToFetch,
@@ -405,21 +499,23 @@ If you want real AI completions, please configure a valid API key (for OpenAI, G
       });
 
       if (matchingEvents.length > 0) {
-        contextStr += '\n--- RELATED CALENDAR EVENTS ---\n';
+        contextStr += '\n--- RELATED CALENDAR EVENTS & EXAMS ---\n';
         matchingEvents.forEach(e => {
           contextStr += `- Event: ${e.title} | Start: ${e.startAt.toISOString()} | End: ${e.endAt.toISOString()}${e.isAllDay ? ' (All Day)' : ''} | Subject: ${e.subject?.name || 'General'}\n`;
           if (e.description) contextStr += `  Description: ${e.description}\n`;
         });
+      } else if (wantsEvents) {
+        contextStr += '\n--- CALENDAR & EXAMS ---\nStatus: No upcoming events or exams found on your calendar.\n';
       }
     }
 
-    // Search Habits
-    const habitsToFetch = wantsHabits ? 10 : (keywords.length > 0 ? 3 : 0);
+    // 7. Habits
+    const habitsToFetch = wantsHabits ? 10 : (wantsOverview ? 3 : (keywords.length > 0 ? 3 : 0));
     if (habitsToFetch > 0) {
       const matchingHabits = await prisma.habit.findMany({
         where: {
           userId,
-          OR: keywords.length > 0 ? keywords.map(kw => ({ name: { contains: kw } })) : undefined,
+          OR: keywords.length > 0 && !wantsOverview ? keywords.map(kw => ({ name: { contains: kw } })) : undefined,
         },
         include: {
           logs: {

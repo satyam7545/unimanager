@@ -39,6 +39,10 @@ export class NotificationRepository {
     });
   }
 
+  async createManyNotifications(data: {userId: string, title: string, message: string, isRead: boolean}[]) {
+      return prisma.notification.createMany({ data });
+  }
+
   async findNotificationByTitle(userId: string, title: string) {
     return prisma.notification.findFirst({
       where: {
@@ -46,5 +50,19 @@ export class NotificationRepository {
         title,
       },
     });
+  }
+
+  async findNotificationsByTitles(userId: string, titles: string[], minCreatedAt?: Date) {
+      const whereClause: any = {
+          userId,
+          title: { in: titles },
+      };
+      if (minCreatedAt) {
+          whereClause.createdAt = { gte: minCreatedAt };
+      }
+      return prisma.notification.findMany({
+          where: whereClause,
+          select: { title: true },
+      });
   }
 }

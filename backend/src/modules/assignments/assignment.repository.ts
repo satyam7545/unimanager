@@ -55,6 +55,7 @@ export class AssignmentRepository {
       deadline: Date;
       subjectId?: string | null;
       semester?: string | null;
+      estimatedHours?: number;
     }
   ): Promise<Assignment> {
     return prisma.assignment.create({
@@ -67,6 +68,7 @@ export class AssignmentRepository {
         deadline: data.deadline,
         subjectId: data.subjectId || null,
         semester: data.semester || null,
+        estimatedHours: data.estimatedHours ?? 2.0,
       },
       include: {
         subject: { select: { id: true, name: true, color: true, semester: true } },
@@ -84,6 +86,7 @@ export class AssignmentRepository {
       deadline?: Date;
       subjectId?: string | null;
       semester?: string | null;
+      estimatedHours?: number;
     }
   ): Promise<Assignment> {
     return prisma.assignment.update({

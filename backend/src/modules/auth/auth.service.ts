@@ -2,7 +2,7 @@ import { AuthRepository } from './auth.repository';
 import { hashPassword, comparePassword } from '../../utils/password';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../../utils/jwt';
 import { BadRequestError, UnauthorizedError, NotFoundError } from '../../utils/errors';
-import { User } from '@prisma/client';
+import { User, Prisma } from '@prisma/client';
 import { prisma } from '../../utils/prisma';
 
 export class AuthService {
@@ -99,7 +99,7 @@ export class AuthService {
   }
 
   async updateProfile(userId: string, data: { name?: string; semester?: string | null; password?: string }) {
-    const updateData: any = {};
+    const updateData: Prisma.UserUpdateInput = {};
     if (data.name) {
       updateData.name = data.name;
     }
