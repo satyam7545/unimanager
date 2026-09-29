@@ -11,7 +11,7 @@ export interface NoteFilters {
 }
 
 export class NoteRepository {
-  async findAllByUserId(userId: string, filters: NoteFilters = {}): Promise<Note[]> {
+  async findAllByUserId(userId: string, filters: NoteFilters = {}): Promise<any[]> {
     const { search, folderId, subjectId, isPinned, isFavorite, semester } = filters;
 
     return prisma.note.findMany({
@@ -38,10 +38,21 @@ export class NoteRepository {
           } : {},
         ],
       },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        isRichText: true,
+        isPinned: true,
+        isFavorite: true,
+        folderId: true,
+        subjectId: true,
+        semester: true,
+        userId: true,
+        createdAt: true,
+        updatedAt: true,
         tags: true,
         subject: { select: { id: true, name: true, color: true, semester: true } },
-        attachments: true,
+        attachments: { select: { id: true, fileName: true, fileType: true, fileSize: true } },
       },
       orderBy: [
         { isPinned: 'desc' },

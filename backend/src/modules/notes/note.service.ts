@@ -6,7 +6,7 @@ import { prisma } from '../../utils/prisma';
 export class NoteService {
   private repository = new NoteRepository();
 
-  async getAllNotes(userId: string, filters: NoteFilters = {}): Promise<Note[]> {
+  async getAllNotes(userId: string, filters: NoteFilters = {}): Promise<any[]> {
     return this.repository.findAllByUserId(userId, filters);
   }
 

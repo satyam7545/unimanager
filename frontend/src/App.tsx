@@ -1,14 +1,13 @@
 import React, { useEffect, useState, lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './features/auth/store/authStore';
-import { useUIStore } from './store/uiStore';
 import { authService } from './features/auth/services/auth.service';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { MainLayout } from './layouts/MainLayout';
 import { motion } from 'framer-motion';
-import { Sparkles, Calendar as CalendarIcon, Loader2 } from 'lucide-react';
-import { GlassCard } from '@/components/GlassCard';
+import { Loader2 } from 'lucide-react';
 
 // Lazy load workspace pages for bundle performance optimization
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -29,7 +28,7 @@ const queryClient = new QueryClient({
     queries: {
       refetchOnWindowFocus: false,
       retry: 1,
-      staleTime: 1000 * 30, // 30 seconds fresh cache
+      staleTime: 1000 * 60, // 60 seconds fresh cache
       gcTime: 1000 * 60 * 5, // 5 minutes garbage collection
     },
   },
@@ -37,7 +36,6 @@ const queryClient = new QueryClient({
 
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuthStore();
-  const { activeSection } = useUIStore();
   const [authView, setAuthView] = useState<'login' | 'register'>('login');
 
   // Trigger checkSession once at mount to retrieve valid cookies
@@ -86,55 +84,6 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Switch display panels based on selected sidebar item
-  const renderContent = () => {
-    switch (activeSection) {
-      case 'Dashboard':
-        return <Dashboard />;
-      case 'Subjects':
-        return <Subjects />;
-      case 'Notes':
-        return <Notes />;
-      case 'Assignments':
-        return <Assignments />;
-      case 'Planner':
-        return <Planner />;
-      case 'Calendar':
-        return <Calendar />;
-      case 'Projects':
-        return <Projects />;
-      case 'Habits':
-        return <Habits />;
-      case 'Analytics':
-        return <Analytics />;
-      case 'AI Assistant':
-        return <AIAssistant />;
-      case 'Settings':
-        return <Settings />;
-      case 'Profile':
-        return <Profile />;
-      default:
-        // Premium placeholder card for sections coming in future phases
-        return (
-          <div className="h-[60vh] flex items-center justify-center">
-            <GlassCard hoverEffect={false} className="max-w-md border-white/5 text-center p-8">
-              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary mx-auto mb-4">
-                <Sparkles className="w-6 h-6 animate-pulse" />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2">{activeSection} Workspace</h3>
-              <p className="text-sm text-zinc-400 leading-relaxed mb-6">
-                This feature is scheduled for development in the upcoming phase of UniManager. We are coding round-the-clock!
-              </p>
-              <div className="flex items-center justify-center gap-2 text-xs text-primary font-semibold bg-primary/5 border border-primary/10 px-4 py-2 rounded-full">
-                <CalendarIcon className="w-4 h-4" />
-                <span>Coming in next release phase</span>
-              </div>
-            </GlassCard>
-          </div>
-        );
-    }
-  };
-
   return (
     <MainLayout>
       <Suspense
@@ -145,7 +94,25 @@ const AppContent: React.FC = () => {
           </div>
         }
       >
-        {renderContent()}
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/subjects" element={<Subjects />} />
+          <Route path="/subjects/:id" element={<Subjects />} />
+          <Route path="/notes" element={<Notes />} />
+          <Route path="/notes/:id" element={<Notes />} />
+          <Route path="/assignments" element={<Assignments />} />
+          <Route path="/planner" element={<Planner />} />
+          <Route path="/calendar" element={<Calendar />} />
+          <Route path="/projects" element={<Projects />} />
+          <Route path="/habits" element={<Habits />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/ai" element={<AIAssistant />} />
+          <Route path="/ai-assistant" element={<Navigate to="/ai" replace />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
       </Suspense>
     </MainLayout>
   );
@@ -154,7 +121,9 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppContent />
+      <BrowserRouter>
+        <AppContent />
+      </BrowserRouter>
     </QueryClientProvider>
   );
 }

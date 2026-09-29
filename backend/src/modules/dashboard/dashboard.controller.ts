@@ -26,23 +26,7 @@ export class DashboardController {
       const fourteenDaysAgo = new Date();
       fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
 
-      // Generate day queries for past 7 days to run in parallel
-      const dayQueries = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - (6 - i));
-        d.setHours(0, 0, 0, 0);
-        const nextDay = new Date(d);
-        nextDay.setDate(nextDay.getDate() + 1);
-        return prisma.task.count({
-          where: {
-            userId,
-            status: { in: ['DONE', 'COMPLETED'] },
-            updatedAt: { gte: d, lt: nextDay }
-          }
-        });
-      });
-
-      // Perform parallel querying for optimal responsiveness
+      // Perform parallel querying with lean projections and consolidated queries
       const [
         user,
         allActiveTasks,
@@ -54,20 +38,37 @@ export class DashboardController {
         taskStats,
         habitStats,
         lastWeekCompletedCount,
-        ...dayCompletedCounts
+        recentCompletedTasks
       ] = await Promise.all([
         // 1. User details for study streaks
         prisma.user.findUnique({
           where: { id: userId },
           select: { studyStreak: true, name: true }
         }),
-        // 2. All active tasks with subject/assignment relationships
+        // 2. All active tasks with subject/assignment relationships (lean projection)
         prisma.task.findMany({
           where: {
             userId,
             status: { not: 'DONE' }
           },
-          include: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            priority: true,
+            order: true,
+            columnId: true,
+            projectId: true,
+            assignmentId: true,
+            subjectId: true,
+            parentId: true,
+            estimatedMinutes: true,
+            actualMinutes: true,
+            date: true,
+            timeSlot: true,
+            userId: true,
+            createdAt: true,
+            updatedAt: true,
             subject: { select: { id: true, name: true, color: true } },
             assignment: { select: { id: true, title: true, deadline: true, subjectId: true } },
             project: { select: { id: true, name: true } }
@@ -86,21 +87,90 @@ export class DashboardController {
               ]
             })
           },
-          include: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            priority: true,
+            status: true,
+            deadline: true,
+            estimatedHours: true,
+            subjectId: true,
+            semester: true,
+            userId: true,
+            createdAt: true,
+            updatedAt: true,
             subject: { select: { id: true, name: true, color: true } }
           },
           orderBy: { deadline: 'asc' }
         }),
-        // 4. Subjects with their assignments, tasks, and events for health analysis
+        // 4. Subjects with lean sub-queries for health analysis
         prisma.subject.findMany({
           where: {
             userId,
             ...(semester && { semester: String(semester) })
           },
-          include: {
-            assignments: true,
-            tasks: true,
-            events: true,
+          select: {
+            id: true,
+            name: true,
+            color: true,
+            semester: true,
+            userId: true,
+            createdAt: true,
+            updatedAt: true,
+            assignments: {
+              select: {
+                id: true,
+                title: true,
+                status: true,
+                priority: true,
+                deadline: true,
+                estimatedHours: true,
+                subjectId: true,
+                semester: true,
+                userId: true,
+                createdAt: true,
+                updatedAt: true,
+                description: true
+              }
+            },
+            tasks: {
+              select: {
+                id: true,
+                title: true,
+                status: true,
+                priority: true,
+                order: true,
+                columnId: true,
+                projectId: true,
+                assignmentId: true,
+                subjectId: true,
+                parentId: true,
+                estimatedMinutes: true,
+                actualMinutes: true,
+                date: true,
+                timeSlot: true,
+                userId: true,
+                createdAt: true,
+                updatedAt: true
+              }
+            },
+            events: {
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                startAt: true,
+                endAt: true,
+                color: true,
+                isAllDay: true,
+                eventType: true,
+                subjectId: true,
+                userId: true,
+                createdAt: true,
+                updatedAt: true
+              }
+            },
           }
         }),
         // 5. Upcoming events (exams, classes, etc.)
@@ -109,7 +179,19 @@ export class DashboardController {
             userId,
             startAt: { gte: startOfToday }
           },
-          include: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            startAt: true,
+            endAt: true,
+            color: true,
+            isAllDay: true,
+            eventType: true,
+            subjectId: true,
+            userId: true,
+            createdAt: true,
+            updatedAt: true,
             subject: { select: { id: true, name: true, color: true } }
           },
           orderBy: { startAt: 'asc' },
@@ -121,7 +203,19 @@ export class DashboardController {
             userId,
             startAt: { gte: startOfToday, lte: endOfToday }
           },
-          include: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            startAt: true,
+            endAt: true,
+            color: true,
+            isAllDay: true,
+            eventType: true,
+            subjectId: true,
+            userId: true,
+            createdAt: true,
+            updatedAt: true,
             subject: { select: { id: true, name: true, color: true } }
           },
           orderBy: { startAt: 'asc' }
@@ -158,8 +252,15 @@ export class DashboardController {
             updatedAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo }
           }
         }),
-        // 11. Day completed counts (past 7 days)
-        ...dayQueries
+        // 11. Single query for completed tasks in the past 7 days (replaces 7 individual count queries)
+        prisma.task.findMany({
+          where: {
+            userId,
+            status: { in: ['DONE', 'COMPLETED'] },
+            updatedAt: { gte: sevenDaysAgo }
+          },
+          select: { updatedAt: true }
+        })
       ]);
 
       // Filter upcoming exams
@@ -218,10 +319,19 @@ export class DashboardController {
       const taskStudyHrs = completedCount * 1.5;
       const weeklyStudyHours = Number(taskStudyHrs.toFixed(1)) || 0.0;
 
-      // Calculate daily study hours for the past 7 days using query results
-      const dailyStudyHours = dayCompletedCounts.map((count, index) => {
+      // Calculate daily study hours for the past 7 days using the consolidated completed tasks
+      const dailyStudyHours = Array.from({ length: 7 }, (_, index) => {
         const d = new Date();
         d.setDate(d.getDate() - (6 - index));
+        d.setHours(0, 0, 0, 0);
+        const nextDay = new Date(d);
+        nextDay.setDate(nextDay.getDate() + 1);
+
+        const count = recentCompletedTasks.filter((t) => {
+          const tDate = new Date(t.updatedAt);
+          return tDate >= d && tDate < nextDay;
+        }).length;
+
         const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
         return {
           day: dayName,

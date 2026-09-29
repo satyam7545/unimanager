@@ -76,7 +76,9 @@ export const Dashboard: React.FC = () => {
       const res = await api.get(url);
       return res.data;
     },
-    refetchInterval: 30000,
+    staleTime: 60000,
+    refetchInterval: 120000,
+    refetchOnWindowFocus: false,
   });
 
   // Reschedule mutation for overdue items
@@ -90,12 +92,33 @@ export const Dashboard: React.FC = () => {
     },
   });
 
-  // Complete task mutation
+  // Optimistic complete task mutation
   const completeTaskMutation = useMutation({
     mutationFn: async (taskId: string) => {
       return api.put(`/tasks/${taskId}`, { status: 'DONE' });
     },
-    onSuccess: () => {
+    onMutate: async (taskId: string) => {
+      await queryClient.cancelQueries({ queryKey: ['dashboardSummary', selectedSemester] });
+      const previousSummary = queryClient.getQueryData(['dashboardSummary', selectedSemester]);
+
+      queryClient.setQueryData(['dashboardSummary', selectedSemester], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          todaysTasks: old.todaysTasks ? old.todaysTasks.filter((t: any) => t.id !== taskId) : [],
+          prioritizedTasks: old.prioritizedTasks ? old.prioritizedTasks.filter((t: any) => t.id !== taskId) : [],
+          productivityScore: Math.min(100, (old.productivityScore || 50) + 5),
+        };
+      });
+
+      return { previousSummary };
+    },
+    onError: (_err, _taskId, context) => {
+      if (context?.previousSummary) {
+        queryClient.setQueryData(['dashboardSummary', selectedSemester], context.previousSummary);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },

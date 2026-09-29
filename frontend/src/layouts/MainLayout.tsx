@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -34,21 +35,22 @@ import { authService } from '@/features/auth/services/auth.service';
 import { api } from '@/services/api';
 import { FocusModal } from '@/components/FocusModal';
 import { CommandPalette } from '@/components/CommandPalette';
+import { QuickCaptureModal } from '@/components/QuickCaptureModal';
 
 // Static nav items — defined outside component to prevent array recreation on every render
-const menuItems = [
-  { name: 'Dashboard', icon: LayoutDashboard },
-  { name: 'Subjects', icon: BookOpen },
-  { name: 'Notes', icon: FileText },
-  { name: 'Assignments', icon: ClipboardList },
-  { name: 'Planner', icon: CalendarRange },
-  { name: 'Calendar', icon: CalendarDays },
-  { name: 'Projects', icon: FolderGit2 },
-  { name: 'Habits', icon: Flame },
-  { name: 'Analytics', icon: BarChart3 },
-  { name: 'AI Assistant', icon: Sparkles },
-  { name: 'Profile', icon: User },
-  { name: 'Settings', icon: Settings },
+export const menuItems = [
+  { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+  { name: 'Subjects', path: '/subjects', icon: BookOpen },
+  { name: 'Notes', path: '/notes', icon: FileText },
+  { name: 'Assignments', path: '/assignments', icon: ClipboardList },
+  { name: 'Planner', path: '/planner', icon: CalendarRange },
+  { name: 'Calendar', path: '/calendar', icon: CalendarDays },
+  { name: 'Projects', path: '/projects', icon: FolderGit2 },
+  { name: 'Habits', path: '/habits', icon: Flame },
+  { name: 'Analytics', path: '/analytics', icon: BarChart3 },
+  { name: 'AI Assistant', path: '/ai', icon: Sparkles },
+  { name: 'Profile', path: '/profile', icon: User },
+  { name: 'Settings', path: '/settings', icon: Settings },
 ];
 
 // Pure time formatting helper — no dependency on component state
@@ -96,42 +98,63 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     setSelectedSemester,
     setQuickActionTrigger,
     setCommandPaletteOpen,
+    quickCaptureOpen,
+    setQuickCaptureOpen,
+    toggleQuickCapture,
   } = useUIStore();
   const { user } = useAuthStore();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
 
-  // Quick actions reference setActiveSection — defined inside component
+  // Synchronize activeSection with current URL route
+  useEffect(() => {
+    const currentItem = menuItems.find(
+      (item) => location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path))
+    );
+    if (currentItem && activeSection !== currentItem.name) {
+      setActiveSection(currentItem.name);
+    }
+  }, [location.pathname]);
+
+  // Quick actions reference setActiveSection & navigate
   const quickActions = [
+    {
+      label: 'Quick Capture',
+      icon: Plus,
+      color: 'bg-primary/20 hover:bg-primary/30 border-primary/30 text-primary-foreground',
+      onClick: () => { setQuickCaptureOpen(true); setFabOpen(false); }
+    },
     {
       label: 'New Note',
       icon: FileText,
       color: 'bg-primary/20 hover:bg-primary/30 border-primary/30 text-primary-foreground',
-      onClick: () => { setActiveSection('Notes'); setQuickActionTrigger('note'); setFabOpen(false); }
+      onClick: () => { navigate('/notes'); setActiveSection('Notes'); setQuickActionTrigger('note'); setFabOpen(false); }
     },
     {
       label: 'New Task',
       icon: ClipboardList,
       color: 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/30 text-amber-400',
-      onClick: () => { setActiveSection('Planner'); setQuickActionTrigger('task'); setFabOpen(false); }
+      onClick: () => { navigate('/planner'); setActiveSection('Planner'); setQuickActionTrigger('task'); setFabOpen(false); }
     },
     {
       label: 'New Assignment',
       icon: CalendarRange,
       color: 'bg-sky-500/20 hover:bg-sky-500/30 border-sky-500/30 text-sky-400',
-      onClick: () => { setActiveSection('Assignments'); setQuickActionTrigger('assignment'); setFabOpen(false); }
+      onClick: () => { navigate('/assignments'); setActiveSection('Assignments'); setQuickActionTrigger('assignment'); setFabOpen(false); }
     },
     {
       label: 'Add Event',
       icon: CalendarDays,
       color: 'bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-500/30 text-emerald-400',
-      onClick: () => { setActiveSection('Calendar'); setQuickActionTrigger('event'); setFabOpen(false); }
+      onClick: () => { navigate('/calendar'); setActiveSection('Calendar'); setQuickActionTrigger('event'); setFabOpen(false); }
     },
     {
       label: 'Ask Assistant',
       icon: Sparkles,
       color: 'bg-violet-500/20 hover:bg-violet-500/30 border-violet-500/30 text-violet-400',
-      onClick: () => { setActiveSection('AI Assistant'); setFabOpen(false); }
+      onClick: () => { navigate('/ai'); setActiveSection('AI Assistant'); setFabOpen(false); }
     }
   ];
 
@@ -158,19 +181,26 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Handle keyboard shortcuts: Ctrl+K for search, Escape to close, [ to toggle sidebar
+  // Handle keyboard shortcuts: Alt+N for quick capture, Ctrl+K for search, Escape to close, [ to toggle sidebar
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Alt+N / Option+N — toggle quick capture modal
+      if (e.altKey && (e.key === 'n' || e.key === 'N')) {
+        e.preventDefault();
+        toggleQuickCapture();
+        return;
+      }
       // Ctrl+K — open/close search palette
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
-        setSearchOpen((prev) => !prev);
+        setCommandPaletteOpen(true);
         return;
       }
-      // Escape — close search, FAB, or notifications
+      // Escape — close search, FAB, quick capture, or notifications
       if (e.key === 'Escape') {
         if (searchOpen) { setSearchOpen(false); setSearchQuery(''); }
         if (fabOpen) setFabOpen(false);
+        if (quickCaptureOpen) setQuickCaptureOpen(false);
         return;
       }
       // [ key — toggle sidebar (only when not focused on an input)
@@ -181,7 +211,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [searchOpen, fabOpen, toggleSidebar]);
+  }, [searchOpen, fabOpen, quickCaptureOpen, toggleSidebar, toggleQuickCapture, setCommandPaletteOpen, setQuickCaptureOpen]);
 
   const { data: searchResults, isLoading: searchLoading } = useQuery({
     queryKey: ['globalSearch', debouncedQuery],
@@ -370,12 +400,15 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto select-none">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeSection === item.name;
+            const isActive = location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
 
             return (
               <button
                 key={item.name}
-                onClick={() => setActiveSection(item.name)}
+                onClick={() => {
+                  setActiveSection(item.name);
+                  navigate(item.path);
+                }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative active:scale-[0.98] ${
                   isActive
                     ? 'text-white bg-primary/10 shadow-inner shadow-primary/10 border border-primary/20'
@@ -466,6 +499,17 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 ))}
               </select>
             </div>
+            {/* Quick Capture Button */}
+            <button
+              onClick={() => toggleQuickCapture()}
+              className="p-2 text-zinc-300 hover:text-white hover:bg-primary/20 rounded-lg transition-all hidden sm:flex items-center gap-1.5 border border-primary/30 bg-primary/10 shadow-sm shadow-primary/20"
+              title="Quick Capture Note / Task / Assignment (Alt+N)"
+            >
+              <Plus className="w-4 h-4 text-primary" />
+              <span className="text-xs font-semibold text-zinc-200">Capture</span>
+              <kbd className="text-[10px] bg-primary/20 px-1.5 py-0.5 rounded text-primary-200 border border-primary/30 leading-none">Alt N</kbd>
+            </button>
+
             {/* Global Search Button */}
             <button
               onClick={() => setCommandPaletteOpen(true)}
@@ -670,13 +714,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <nav className="flex-1 space-y-1 overflow-y-auto mb-4">
                 {menuItems.map((item) => {
                   const Icon = item.icon;
-                  const isActive = activeSection === item.name;
+                  const isActive = location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
 
                   return (
                     <button
                       key={item.name}
                       onClick={() => {
                         setActiveSection(item.name);
+                        navigate(item.path);
                         setMobileMenuOpen(false);
                       }}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
@@ -725,19 +770,22 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {/* Mobile Sticky Bottom Tab Bar (Quick Nav for Key features) */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-zinc-950/70 backdrop-blur-xl border-t border-white/5 flex items-center justify-around px-4 z-40">
         {[
-          { name: 'Dashboard', icon: LayoutDashboard },
-          { name: 'Notes', icon: FileText },
-          { name: 'Planner', icon: CalendarRange },
-          { name: 'AI Assistant', icon: Sparkles },
-          { name: 'Profile', icon: User }
+          { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+          { name: 'Notes', path: '/notes', icon: FileText },
+          { name: 'Planner', path: '/planner', icon: CalendarRange },
+          { name: 'AI Assistant', path: '/ai', icon: Sparkles },
+          { name: 'Profile', path: '/profile', icon: User }
         ].map((item) => {
           const Icon = item.icon;
-          const isActive = activeSection === item.name;
+          const isActive = location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
 
           return (
             <button
               key={item.name}
-              onClick={() => setActiveSection(item.name)}
+              onClick={() => {
+                setActiveSection(item.name);
+                navigate(item.path);
+              }}
               className={`flex flex-col items-center justify-center flex-1 py-1.5 gap-1 transition-colors ${
                 isActive ? 'text-primary' : 'text-zinc-500'
               }`}
@@ -1046,6 +1094,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {/* Global Focus Mode & Command Palette */}
       <FocusModal />
       <CommandPalette />
+      <QuickCaptureModal />
     </div>
   );
 };

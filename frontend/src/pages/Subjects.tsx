@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, FolderOpen, Trash2, ArrowLeft, ExternalLink, Link, FileText, Calendar, AlertCircle, Paperclip, Edit3, X, Clock } from 'lucide-react';
 import { api, API_HOST } from '@/services/api';
@@ -7,20 +8,30 @@ import { useUIStore } from '@/store/uiStore';
 
 export const Subjects: React.FC = () => {
   const queryClient = useQueryClient();
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { id: paramSubjectId } = useParams<{ id?: string }>();
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(paramSubjectId || null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('#8B5CF6'); // default violet
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Deep-link redirect handler from search
+  // Synchronize URL param with active subject
+  React.useEffect(() => {
+    if (paramSubjectId) {
+      setSelectedSubjectId(paramSubjectId);
+    }
+  }, [paramSubjectId]);
+
+  // Deep-link redirect handler from search fallback
   React.useEffect(() => {
     const redirectedSubjId = localStorage.getItem('selectedSubjectId');
     if (redirectedSubjId) {
       setSelectedSubjectId(redirectedSubjId);
+      navigate(`/subjects/${redirectedSubjId}`);
       localStorage.removeItem('selectedSubjectId');
     }
-  }, []);
+  }, [navigate]);
 
   const { setActiveSection, selectedSemester } = useUIStore();
   const [viewingNote, setViewingNote] = useState<any | null>(null);
@@ -68,12 +79,16 @@ export const Subjects: React.FC = () => {
     mutationFn: async (data: { name: string; color: string; semester: string | null }) => {
       return api.post('/subjects', data);
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['subjects'] });
       setNewName('');
       setNewSemester('');
       setShowAddModal(false);
       setErrorMsg(null);
+      if (res?.data?.subject?.id) {
+        setSelectedSubjectId(res.data.subject.id);
+        navigate(`/subjects/${res.data.subject.id}`);
+      }
     },
     onError: (err: any) => {
       setErrorMsg(err.message || 'Failed to create subject.');
@@ -88,6 +103,7 @@ export const Subjects: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subjects'] });
       setSelectedSubjectId(null);
+      navigate('/subjects');
     },
   });
 
@@ -188,7 +204,10 @@ export const Subjects: React.FC = () => {
         {/* Scoped Header */}
         <div className="flex items-center gap-4">
           <button
-            onClick={() => setSelectedSubjectId(null)}
+            onClick={() => {
+              setSelectedSubjectId(null);
+              navigate('/subjects');
+            }}
             className="p-2 border border-white/5 bg-white/[0.02] hover:bg-white/[0.05] text-zinc-400 hover:text-white rounded-lg transition-all"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -394,7 +413,10 @@ export const Subjects: React.FC = () => {
             subjectsData?.map((subject: any) => (
               <GlassCard
                 key={subject.id}
-                onClick={() => setSelectedSubjectId(subject.id)}
+                onClick={() => {
+                  setSelectedSubjectId(subject.id);
+                  navigate(`/subjects/${subject.id}`);
+                }}
                 className="border-white/5 flex flex-col justify-between h-36 cursor-pointer"
                 glowColor={`${subject.color}15`}
                 style={{ borderLeft: `3px solid ${subject.color}` }}

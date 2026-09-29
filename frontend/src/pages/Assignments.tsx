@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, List, Kanban, Calendar, Clock, Trash2, Edit3, Filter, Paperclip, Download, RefreshCw, Sparkles, Check, CheckSquare, X } from 'lucide-react';
+import { Plus, List, Kanban, Calendar, Clock, Trash2, Edit3, Filter, Paperclip, Download, RefreshCw, Sparkles, Check, CheckSquare, X, BookOpen } from 'lucide-react';
 import { api, API_HOST } from '@/services/api';
 import { GlassCard } from '@/components/GlassCard';
 import { useUIStore } from '@/store/uiStore';
@@ -12,6 +13,13 @@ export const Assignments: React.FC = () => {
   const [subjectFilter, setSubjectFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+
+  // Batch action selection states
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showBatchReschedule, setShowBatchReschedule] = useState(false);
+  const [batchDeadline, setBatchDeadline] = useState('');
+  const [showBatchSubject, setShowBatchSubject] = useState(false);
+  const [batchSubjectId, setBatchSubjectId] = useState('');
   
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -310,7 +318,73 @@ export const Assignments: React.FC = () => {
     }
   };
 
+  const batchUpdateStatusMutation = useMutation({
+    mutationFn: async (newStatus: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED') => {
+      await Promise.all(selectedIds.map((id) => api.put(`/assignments/${id}`, { status: newStatus })));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setSelectedIds([]);
+    },
+  });
+
+  const batchDeleteMutation = useMutation({
+    mutationFn: async () => {
+      await Promise.all(selectedIds.map((id) => api.delete(`/assignments/${id}`)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setSelectedIds([]);
+    },
+  });
+
+  const batchRescheduleMutation = useMutation({
+    mutationFn: async (dateStr: string) => {
+      const iso = new Date(dateStr).toISOString();
+      await Promise.all(selectedIds.map((id) => api.put(`/assignments/${id}`, { deadline: iso })));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setSelectedIds([]);
+      setShowBatchReschedule(false);
+      setBatchDeadline('');
+    },
+  });
+
+  const batchSubjectMutation = useMutation({
+    mutationFn: async (targetSubjId: string) => {
+      await Promise.all(selectedIds.map((id) => api.put(`/assignments/${id}`, { subjectId: targetSubjId || null })));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setSelectedIds([]);
+      setShowBatchSubject(false);
+      setBatchSubjectId('');
+    },
+  });
+
+  const toggleSelectAssignment = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
   const filteredAssignments = assignments || [];
+
+  const handleSelectAll = () => {
+    if (selectedIds.length === filteredAssignments.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredAssignments.map((a: any) => a.id));
+    }
+  };
+
+  const isAllSelected = filteredAssignments.length > 0 && selectedIds.length === filteredAssignments.length;
 
   return (
     <div className="space-y-8 select-none">
@@ -402,6 +476,20 @@ export const Assignments: React.FC = () => {
           <option value="IN_PROGRESS">In Progress</option>
           <option value="COMPLETED">Completed</option>
         </select>
+
+        {/* Select All Toggle Button */}
+        <button
+          type="button"
+          onClick={handleSelectAll}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ml-auto ${
+            selectedIds.length > 0
+              ? 'bg-primary/20 border-primary/40 text-primary-200'
+              : 'border-white/10 bg-zinc-900/60 text-zinc-400 hover:text-white'
+          }`}
+        >
+          <CheckSquare className={`w-3.5 h-3.5 ${isAllSelected ? 'text-primary' : ''}`} />
+          <span>{isAllSelected ? 'Deselect All' : selectedIds.length > 0 ? `Selected (${selectedIds.length})` : 'Select All'}</span>
+        </button>
       </div>
 
       {/* Layout Content mapping */}
@@ -421,15 +509,36 @@ export const Assignments: React.FC = () => {
           {filteredAssignments.map((ass: any) => (
             <div
               key={ass.id}
-              className="p-4 border border-white/5 bg-zinc-950/20 backdrop-blur-md rounded-xl hover:bg-zinc-900/30 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 group"
+              className={`p-4 border backdrop-blur-md rounded-xl transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 group ${
+                selectedIds.includes(ass.id)
+                  ? 'border-primary/50 bg-primary/[0.05] ring-1 ring-primary/30'
+                  : 'border-white/5 bg-zinc-950/20 hover:bg-zinc-900/30'
+              }`}
             >
               <div className="flex items-start gap-3 min-w-0 flex-1">
+                {/* Multi-select checkbox */}
                 <input
                   type="checkbox"
-                  checked={ass.status === 'COMPLETED'}
-                  onChange={() => handleUpdateStatus(ass.id, ass.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED')}
-                  className="mt-1 rounded border-white/10 bg-white/5 text-primary focus:ring-primary focus:ring-offset-zinc-950 w-4 h-4 cursor-pointer"
+                  checked={selectedIds.includes(ass.id)}
+                  onChange={(e) => toggleSelectAssignment(ass.id, e as any)}
+                  className="mt-1 rounded border-white/20 bg-white/5 text-primary focus:ring-primary focus:ring-offset-zinc-950 w-4 h-4 cursor-pointer accent-primary shrink-0"
+                  title="Select for batch actions"
                 />
+
+                {/* Status completion toggle button */}
+                <button
+                  type="button"
+                  onClick={() => handleUpdateStatus(ass.id, ass.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED')}
+                  className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center transition-all shrink-0 ${
+                    ass.status === 'COMPLETED'
+                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                      : 'border-white/10 hover:border-white/30 text-transparent hover:text-white/30'
+                  }`}
+                  title={ass.status === 'COMPLETED' ? 'Mark Incomplete' : 'Mark Completed'}
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+
                 <div className="min-w-0 flex-1">
                   <span className={`text-sm font-bold block truncate ${
                     ass.status === 'COMPLETED' ? 'text-zinc-500 line-through' : 'text-zinc-200 group-hover:text-white'
@@ -540,15 +649,29 @@ export const Assignments: React.FC = () => {
                     <GlassCard
                       key={ass.id}
                       hoverEffect={true}
-                      className="border-white/5 !p-4 cursor-pointer group"
+                      className={`!p-4 cursor-pointer group transition-all ${
+                        selectedIds.includes(ass.id)
+                          ? 'border-primary/50 bg-primary/[0.05] ring-1 ring-primary/30'
+                          : 'border-white/5'
+                      }`}
                       onClick={() => handleOpenEdit(ass)}
                     >
                       <div className="flex justify-between items-start gap-2">
-                        <span className={`text-sm font-bold truncate block ${
-                          ass.status === 'COMPLETED' ? 'text-zinc-500 line-through' : 'text-zinc-200'
-                        }`}>
-                          {ass.title}
-                        </span>
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(ass.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => toggleSelectAssignment(ass.id, e as any)}
+                            className="rounded border-white/20 bg-white/5 text-primary focus:ring-primary focus:ring-offset-zinc-950 w-3.5 h-3.5 cursor-pointer accent-primary shrink-0"
+                            title="Select for batch action"
+                          />
+                          <span className={`text-sm font-bold truncate block ${
+                            ass.status === 'COMPLETED' ? 'text-zinc-500 line-through' : 'text-zinc-200'
+                          }`}>
+                            {ass.title}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-1.5 mt-3">
@@ -996,6 +1119,176 @@ export const Assignments: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* Floating Batch Actions Dock */}
+      <AnimatePresence>
+        {selectedIds.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 35, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 35, scale: 0.95 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-zinc-950/95 border border-primary/30 rounded-2xl shadow-2xl shadow-primary/20 backdrop-blur-xl px-4 py-3 flex flex-wrap items-center gap-3 max-w-2xl w-[92vw]"
+          >
+            <div className="flex items-center gap-2 pr-3 border-r border-white/10 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span className="text-xs font-bold text-white">
+                {selectedIds.length} {selectedIds.length === 1 ? 'item' : 'items'} selected
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 flex-1">
+              <button
+                type="button"
+                onClick={() => batchUpdateStatusMutation.mutate('COMPLETED')}
+                disabled={batchUpdateStatusMutation.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition-all disabled:opacity-50"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Mark Done</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => batchUpdateStatusMutation.mutate('IN_PROGRESS')}
+                disabled={batchUpdateStatusMutation.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-semibold transition-all disabled:opacity-50"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>In Progress</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const d = new Date();
+                  d.setDate(d.getDate() + 3);
+                  d.setHours(23, 59, 0, 0);
+                  setBatchDeadline(d.toISOString().slice(0, 16));
+                  setShowBatchReschedule(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-500/30 text-xs font-semibold transition-all"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>Reschedule</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowBatchSubject(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 border border-violet-500/30 text-xs font-semibold transition-all"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Course</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`Delete ${selectedIds.length} assignments? This cannot be undone.`)) {
+                    batchDeleteMutation.mutate();
+                  }
+                }}
+                disabled={batchDeleteMutation.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-xs font-semibold transition-all disabled:opacity-50 ml-auto"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedIds([])}
+                className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+                title="Clear selection"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Batch Reschedule Modal */}
+      {showBatchReschedule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-2xl p-5 shadow-2xl space-y-4">
+            <h3 className="font-bold text-white text-base">Reschedule {selectedIds.length} Assignments</h3>
+            <p className="text-xs text-zinc-400">Set a new due date and time for all selected coursework.</p>
+
+            <div>
+              <label className="text-[11px] font-medium text-zinc-400 mb-1 block">New Deadline</label>
+              <input
+                type="datetime-local"
+                value={batchDeadline}
+                onChange={(e) => setBatchDeadline(e.target.value)}
+                className="w-full h-10 px-3 bg-zinc-900 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-primary"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowBatchReschedule(false)}
+                className="flex-1 py-2 text-xs font-semibold text-zinc-400 hover:text-white rounded-xl hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!batchDeadline || batchRescheduleMutation.isPending}
+                onClick={() => batchRescheduleMutation.mutate(batchDeadline)}
+                className="flex-1 py-2 bg-primary hover:bg-primary/90 text-white font-bold text-xs rounded-xl disabled:opacity-50 shadow-lg shadow-primary/20"
+              >
+                {batchRescheduleMutation.isPending ? 'Updating...' : 'Update Deadline'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Assign Course Modal */}
+      {showBatchSubject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-zinc-950 border border-white/10 rounded-2xl p-5 shadow-2xl space-y-4">
+            <h3 className="font-bold text-white text-base">Assign Course for {selectedIds.length} Assignments</h3>
+            <p className="text-xs text-zinc-400">Reassign selected assignments to a specific subject.</p>
+
+            <div>
+              <label className="text-[11px] font-medium text-zinc-400 mb-1 block">Subject</label>
+              <select
+                value={batchSubjectId}
+                onChange={(e) => setBatchSubjectId(e.target.value)}
+                className="w-full h-10 px-3 bg-zinc-900 border border-white/10 rounded-xl text-xs text-white focus:outline-none focus:border-primary"
+              >
+                <option value="">No Course / Remove Course</option>
+                {subjects?.map((s: any) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowBatchSubject(false)}
+                className="flex-1 py-2 text-xs font-semibold text-zinc-400 hover:text-white rounded-xl hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={batchSubjectMutation.isPending}
+                onClick={() => batchSubjectMutation.mutate(batchSubjectId)}
+                className="flex-1 py-2 bg-primary hover:bg-primary/90 text-white font-bold text-xs rounded-xl disabled:opacity-50 shadow-lg shadow-primary/20"
+              >
+                {batchSubjectMutation.isPending ? 'Assigning...' : 'Confirm'}
+              </button>
+            </div>
           </div>
         </div>
       )}

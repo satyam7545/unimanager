@@ -17,6 +17,7 @@ interface UIState {
   selectedSemester: string;
   quickActionTrigger: 'note' | 'task' | 'assignment' | 'event' | null;
   commandPaletteOpen: boolean;
+  quickCaptureOpen: boolean;
   focusTask: FocusTask | null;
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
@@ -26,6 +27,8 @@ interface UIState {
   setQuickActionTrigger: (trigger: 'note' | 'task' | 'assignment' | 'event' | null) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   toggleCommandPalette: () => void;
+  setQuickCaptureOpen: (open: boolean) => void;
+  toggleQuickCapture: () => void;
   setFocusTask: (task: FocusTask | null) => void;
 }
 
@@ -38,6 +41,7 @@ export const useUIStore = create<UIState>()(
       selectedSemester: 'all',
       quickActionTrigger: null,
       commandPaletteOpen: false,
+      quickCaptureOpen: false,
       focusTask: null,
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
@@ -59,6 +63,8 @@ export const useUIStore = create<UIState>()(
       setQuickActionTrigger: (trigger) => set({ quickActionTrigger: trigger }),
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
       toggleCommandPalette: () => set((state) => ({ commandPaletteOpen: !state.commandPaletteOpen })),
+      setQuickCaptureOpen: (open) => set({ quickCaptureOpen: open }),
+      toggleQuickCapture: () => set((state) => ({ quickCaptureOpen: !state.quickCaptureOpen })),
       setFocusTask: (task) => set({ focusTask: task }),
     }),
     {

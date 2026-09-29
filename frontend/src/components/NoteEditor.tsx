@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { Pin, Star, CheckCircle, CloudLightning, RefreshCw, Eye, Edit3, Tag as TagIcon, Paperclip, Download, Plus, Trash2, Sparkles, Clock, X } from 'lucide-react';
+import { Pin, Star, CheckCircle, CloudLightning, RefreshCw, Eye, Edit3, Tag as TagIcon, Paperclip, Download, Plus, Trash2, Sparkles, Clock, X, Layers, Copy, Check } from 'lucide-react';
 import { api, API_HOST } from '@/services/api';
 import { useUIStore } from '@/store/uiStore';
 
@@ -21,11 +21,23 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
   const [editTab, setEditTab] = useState<'write' | 'preview'>('write');
   const [syncState, setSyncState] = useState<'saved' | 'saving' | 'error' | 'idle'>('idle');
   const [isUploading, setIsUploading] = useState(false);
+
+  // AI Quiz state
   const [quizQuestions, setQuizQuestions] = useState<any[] | null>(null);
   const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
   const [selectedQuizAnswers, setSelectedQuizAnswers] = useState<Record<number, number>>({});
   const [showQuizResults, setShowQuizResults] = useState(false);
   const [revisionTaskScheduled, setRevisionTaskScheduled] = useState(false);
+
+  // AI Summarizer state
+  const [summaryText, setSummaryText] = useState<string | null>(null);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [copiedSummary, setCopiedSummary] = useState(false);
+
+  // AI Flashcards state
+  const [flashcardsList, setFlashcardsList] = useState<Array<{ question: string; answer: string }> | null>(null);
+  const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false);
+  const [flippedCards, setFlippedCards] = useState<Record<number, boolean>>({});
 
   const uploadAttachmentMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -136,6 +148,70 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
     } finally {
       setIsGeneratingQuiz(false);
     }
+  };
+
+  const handleSummarize = async () => {
+    if (!content.trim()) return;
+    setIsSummarizing(true);
+    setSummaryText(null);
+    setCopiedSummary(false);
+    try {
+      const res = await api.post('/ai/features/revision-notes', {
+        content: content.slice(0, 4000),
+        noteId,
+      });
+      const raw = res.data?.data?.notes || res.data?.notes || '';
+      setSummaryText(typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2));
+    } catch (e) {
+      console.warn('Summarization error:', e);
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
+  const handleInsertSummary = () => {
+    if (!summaryText) return;
+    const newContent = content.trim()
+      ? `${content}\n\n---\n### 🤖 AI Summary & Key Takeaways\n${summaryText}\n`
+      : `### 🤖 AI Summary & Key Takeaways\n${summaryText}\n`;
+    setContent(newContent);
+    isDirtyRef.current = true;
+    setSummaryText(null);
+  };
+
+  const handleGenerateFlashcards = async () => {
+    if (!content.trim()) return;
+    setIsGeneratingFlashcards(true);
+    setFlashcardsList(null);
+    setFlippedCards({});
+    try {
+      const res = await api.post('/ai/features/flashcards', {
+        topic: title || 'Key concepts',
+        content: content.slice(0, 4000),
+        noteId,
+      });
+      const cards = res.data?.data?.flashcards || res.data?.flashcards || [];
+      if (Array.isArray(cards)) {
+        setFlashcardsList(cards);
+      }
+    } catch (e) {
+      console.warn('Flashcards generation error:', e);
+    } finally {
+      setIsGeneratingFlashcards(false);
+    }
+  };
+
+  const handleAppendFlashcards = () => {
+    if (!flashcardsList || flashcardsList.length === 0) return;
+    const markdownFlashcards = flashcardsList
+      .map((fc, i) => `**Q${i + 1}: ${fc.question}**\n*A: ${fc.answer}*\n`)
+      .join('\n');
+    const newContent = content.trim()
+      ? `${content}\n\n---\n### 🗂️ Study Flashcards\n${markdownFlashcards}`
+      : `### 🗂️ Study Flashcards\n${markdownFlashcards}`;
+    setContent(newContent);
+    isDirtyRef.current = true;
+    setFlashcardsList(null);
   };
 
   // 3. Update note mutation
@@ -394,6 +470,30 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
             <Pin className={`w-4 h-4 ${isPinned ? 'fill-primary' : ''}`} />
           </button>
 
+          {/* Summarize Action */}
+          <button
+            type="button"
+            onClick={handleSummarize}
+            disabled={isSummarizing || !content.trim()}
+            className="p-1.5 px-2.5 rounded-lg border border-violet-500/20 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20 transition-all flex items-center gap-1.5 text-xs font-semibold disabled:opacity-50"
+            title="Generate AI summary & takeaways"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+            <span className="hidden sm:inline">{isSummarizing ? 'Summarizing...' : 'Summarize'}</span>
+          </button>
+
+          {/* Flashcards Action */}
+          <button
+            type="button"
+            onClick={handleGenerateFlashcards}
+            disabled={isGeneratingFlashcards || !content.trim()}
+            className="p-1.5 px-2.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 transition-all flex items-center gap-1.5 text-xs font-semibold disabled:opacity-50"
+            title="Generate study flashcards from this note"
+          >
+            <Layers className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">{isGeneratingFlashcards ? 'Generating...' : 'Flashcards'}</span>
+          </button>
+
           {/* Ask AI quick action */}
           <button
             type="button"
@@ -542,6 +642,98 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({ noteId }) => {
               <Sparkles className="w-3 h-3 text-primary" />
               <span>{isGeneratingQuiz ? 'Quizzing...' : 'Quiz Me'}</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* AI Summary Card */}
+      {summaryText && (
+        <div className="m-4 p-4 rounded-xl bg-violet-500/5 border border-violet-500/20 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-violet-300 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+              AI Summary & Key Takeaways
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(summaryText);
+                  setCopiedSummary(true);
+                  setTimeout(() => setCopiedSummary(false), 2000);
+                }}
+                className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white text-[10px] font-semibold flex items-center gap-1 transition"
+                title="Copy to clipboard"
+              >
+                {copiedSummary ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                <span>{copiedSummary ? 'Copied' : 'Copy'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleInsertSummary}
+                className="px-2.5 py-1 rounded bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 text-[10px] font-bold flex items-center gap-1 border border-violet-500/30 transition"
+              >
+                <Plus className="w-3 h-3" />
+                <span>Insert into Note</span>
+              </button>
+              <button type="button" onClick={() => setSummaryText(null)} className="text-zinc-500 hover:text-white p-1">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-lg bg-zinc-950/60 border border-white/5 text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap font-sans max-h-60 overflow-y-auto">
+            {summaryText}
+          </div>
+        </div>
+      )}
+
+      {/* AI Flashcards Card */}
+      {flashcardsList && flashcardsList.length > 0 && (
+        <div className="m-4 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-amber-400" />
+              AI Study Flashcards ({flashcardsList.length} cards)
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleAppendFlashcards}
+                className="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[10px] font-bold flex items-center gap-1 border border-amber-500/30 transition"
+              >
+                <Plus className="w-3 h-3" />
+                <span>Append to Note</span>
+              </button>
+              <button type="button" onClick={() => setFlashcardsList(null)} className="text-zinc-500 hover:text-white p-1">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {flashcardsList.map((card, idx) => {
+              const isFlipped = flippedCards[idx];
+              return (
+                <div
+                  key={idx}
+                  onClick={() => setFlippedCards((prev) => ({ ...prev, [idx]: !prev[idx] }))}
+                  className={`p-3.5 rounded-xl border cursor-pointer transition-all min-h-[110px] flex flex-col justify-between ${
+                    isFlipped
+                      ? 'bg-amber-500/10 border-amber-500/30 text-zinc-100'
+                      : 'bg-zinc-900/60 border-white/5 text-zinc-300 hover:border-amber-500/20'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-[10px] font-bold text-zinc-500 mb-1">
+                    <span>Card #{idx + 1}</span>
+                    <span className="text-amber-400/80">{isFlipped ? 'Answer' : 'Question (Click to flip)'}</span>
+                  </div>
+                  <p className="text-xs font-medium my-auto">
+                    {isFlipped ? card.answer : card.question}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

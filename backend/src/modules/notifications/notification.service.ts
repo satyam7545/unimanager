@@ -3,10 +3,21 @@ import { prisma } from '../../utils/prisma';
 
 export class NotificationService {
   private repository = new NotificationRepository();
+  private static lastReminderCheckByUser = new Map<string, number>();
+  private static REMINDER_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes
 
   async listNotifications(userId: string) {
-    // Proactively scan and generate reminders before returning notifications list
-    await this.generateReminders(userId);
+    const lastCheck = NotificationService.lastReminderCheckByUser.get(userId) || 0;
+    const now = Date.now();
+
+    // Non-blocking background reminder check with 15-minute cooldown
+    if (now - lastCheck > NotificationService.REMINDER_COOLDOWN_MS) {
+      NotificationService.lastReminderCheckByUser.set(userId, now);
+      this.generateReminders(userId).catch((err) => {
+        console.error('Background reminder generation failed:', err);
+      });
+    }
+
     return this.repository.listNotifications(userId);
   }
 

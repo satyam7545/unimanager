@@ -13,7 +13,7 @@
     "test": "npm run test --prefix backend",
     "prisma:generate": "npm run prisma:generate --prefix backend",
     "prisma:migrate": "npm run prisma:migrate --prefix backend",
-    "prisma:push": "npm run --prefix backend prisma db push",
+    "prisma:push": "npm run prisma:push --prefix backend",
     "prisma:studio": "npm run prisma:studio --prefix backend"
   },
   "devDependencies": {

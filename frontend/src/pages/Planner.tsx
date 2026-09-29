@@ -28,6 +28,9 @@ export const Planner: React.FC = () => {
     NIGHT: '',
   });
 
+  // Drag and drop target slot state
+  const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
+
   // Inline delete confirmation — replaces window.confirm()
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -88,7 +91,24 @@ export const Planner: React.FC = () => {
 
   const updateTaskMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => api.put(`/tasks/${id}`, data),
-    onSuccess: () => {
+    onMutate: async ({ id, data }) => {
+      const queryKey = ['plannerTasks', getISOQueryDate(selectedDate)];
+      await queryClient.cancelQueries({ queryKey });
+      const previousTasks = queryClient.getQueryData(queryKey);
+
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        return old.map((t: any) => (t.id === id ? { ...t, ...data } : t));
+      });
+
+      return { previousTasks, queryKey };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previousTasks) {
+        queryClient.setQueryData(context.queryKey, context.previousTasks);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['plannerTasks', getISOQueryDate(selectedDate)] });
       queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
     },
@@ -139,6 +159,21 @@ export const Planner: React.FC = () => {
   const handleToggleTask = (id: string, currentStatus: string) => {
     const nextStatus = currentStatus === 'DONE' ? 'TODO' : 'DONE';
     updateTaskMutation.mutate({ id, data: { status: nextStatus } });
+  };
+
+  const handleDrop = (e: React.DragEvent, targetSlot: string) => {
+    e.preventDefault();
+    setDragOverSlot(null);
+    try {
+      const dataStr = e.dataTransfer.getData('text/plain');
+      if (!dataStr) return;
+      const { taskId, fromSlot } = JSON.parse(dataStr);
+      if (taskId && fromSlot !== targetSlot) {
+        updateTaskMutation.mutate({ id: taskId, data: { timeSlot: targetSlot } });
+      }
+    } catch (err) {
+      console.warn('Failed to parse drag payload:', err);
+    }
   };
 
   const handleDeleteTask = (id: string) => {
@@ -215,11 +250,28 @@ export const Planner: React.FC = () => {
         {(['MORNING', 'AFTERNOON', 'NIGHT'] as const).map((slot) => {
           const list = tasks?.filter((t: any) => t.timeSlot === slot) || [];
           const slotGlow = slot === 'MORNING' ? 'hover:shadow-amber-500/5' : slot === 'AFTERNOON' ? 'hover:shadow-blue-500/5' : 'hover:shadow-violet-500/5';
-
+          const isDragOver = dragOverSlot === slot;
           const slotMeta = SLOT_META[slot];
 
           return (
-            <div key={slot} className="flex flex-col h-auto md:h-[55vh] min-h-[40vh] space-y-4">
+            <div
+              key={slot}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+              }}
+              onDragEnter={() => setDragOverSlot(slot)}
+              onDragLeave={(e) => {
+                // only reset if leaving the column boundary
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                  setDragOverSlot(null);
+                }
+              }}
+              onDrop={(e) => handleDrop(e, slot)}
+              className={`flex flex-col h-auto md:h-[55vh] min-h-[40vh] space-y-4 rounded-2xl p-2 transition-all duration-200 ${
+                isDragOver ? 'bg-primary/5 ring-2 ring-primary/40' : 'bg-transparent'
+              }`}
+            >
               {/* Column title */}
               <div className="flex items-center justify-between border-b border-white/5 pb-2 shrink-0">
                 <span className="font-bold text-sm text-zinc-300 tracking-wide">{slotMeta.emoji} {slotMeta.label}</span>
@@ -251,17 +303,24 @@ export const Planner: React.FC = () => {
                     <div className="h-10 bg-white/5 rounded-lg border border-white/5" />
                   </div>
                 ) : list.length === 0 ? (
-                  <p className="text-xs text-zinc-600 italic py-2">No tasks scheduled.</p>
+                  <p className="text-xs text-zinc-600 italic py-2">No tasks scheduled. Drag tasks here.</p>
                 ) : (
                   list.map((task: any) => {
                     const isDone = task.status === 'DONE';
 
                     return (
-                      <GlassCard
+                      <div
                         key={task.id}
-                        hoverEffect={true}
-                        className={`border-white/5 !p-3 flex items-start gap-2.5 group transition-shadow ${slotGlow}`}
+                        draggable={true}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', JSON.stringify({ taskId: task.id, fromSlot: slot }));
+                        }}
+                        className="cursor-grab active:cursor-grabbing"
                       >
+                        <GlassCard
+                          hoverEffect={true}
+                          className={`border-white/5 !p-3 flex items-start gap-2.5 group transition-shadow ${slotGlow}`}
+                        >
                         <button
                           onClick={() => handleToggleTask(task.id, task.status)}
                           className="mt-0.5 text-zinc-500 hover:text-white transition-colors shrink-0"
@@ -306,7 +365,8 @@ export const Planner: React.FC = () => {
                           </button>
                         )}
                       </GlassCard>
-                    );
+                    </div>
+                  );
                   })
                 )}
               </div>

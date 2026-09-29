@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Folder, FolderPlus, FilePlus2, Trash2, Search, Pin, Star, FileText, ChevronLeft } from 'lucide-react';
 import { api } from '@/services/api';
@@ -7,8 +8,10 @@ import { useUIStore } from '@/store/uiStore';
 
 export const Notes: React.FC = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { id: paramNoteId } = useParams<{ id?: string }>();
   const { selectedSemester, quickActionTrigger, setQuickActionTrigger } = useUIStore();
-  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(paramNoteId || null);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFolderModal, setShowFolderModal] = useState(false);
@@ -67,14 +70,22 @@ export const Notes: React.FC = () => {
   });
 
 
-  // 0. Handle redirect deep linking and quick action trigger
+  // 0. Handle URL param sync, redirect deep linking, and quick action trigger
+  React.useEffect(() => {
+    if (paramNoteId) {
+      setSelectedNoteId(paramNoteId);
+      setMobilePanelView('editor');
+    }
+  }, [paramNoteId]);
+
   React.useEffect(() => {
     const redirectedNoteId = localStorage.getItem('selectedNoteId');
     if (redirectedNoteId) {
       setSelectedNoteId(redirectedNoteId);
+      navigate(`/notes/${redirectedNoteId}`);
       localStorage.removeItem('selectedNoteId');
     }
-  }, []);
+  }, [navigate]);
 
   React.useEffect(() => {
     if (quickActionTrigger === 'note') {
@@ -116,7 +127,9 @@ export const Notes: React.FC = () => {
     },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['notes'] });
-      setSelectedNoteId(res.data.note.id);
+      const newNoteId = res.data.note.id;
+      setSelectedNoteId(newNoteId);
+      navigate(`/notes/${newNoteId}`);
     },
   });
 
@@ -154,6 +167,7 @@ export const Notes: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['notes'] });
       if (selectedNoteId === id) {
         setSelectedNoteId(null);
+        navigate('/notes');
       }
     },
   });
@@ -337,6 +351,7 @@ export const Notes: React.FC = () => {
                     }}
                     onClick={() => {
                       setSelectedNoteId(note.id);
+                      navigate(`/notes/${note.id}`);
                       setMobilePanelView('editor'); // switch to editor on mobile tap
                     }}
                     className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer border transition-all ${

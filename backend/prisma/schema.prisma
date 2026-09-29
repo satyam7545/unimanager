@@ -119,6 +119,7 @@ model Note {
   attachments Attachment[]
 
   @@index([userId])
+  @@index([userId, isPinned, updatedAt])
   @@index([folderId])
   @@index([subjectId])
 }
@@ -143,6 +144,8 @@ model Assignment {
   attachments Attachment[]
 
   @@index([userId])
+  @@index([userId, status, deadline])
+  @@index([userId, deadline])
   @@index([subjectId])
 }
 
@@ -189,6 +192,10 @@ model Task {
   updatedAt    DateTime    @updatedAt
 
   @@index([userId])
+  @@index([userId, status])
+  @@index([userId, date])
+  @@index([userId, updatedAt])
+  @@index([userId, status, date])
   @@index([projectId])
   @@index([assignmentId])
   @@index([subjectId])
@@ -220,6 +227,7 @@ model HabitLog {
   createdAt   DateTime @default(now())
 
   @@index([habitId])
+  @@index([habitId, completedAt])
 }
 
 model Event {
@@ -239,6 +247,8 @@ model Event {
   updatedAt   DateTime @updatedAt
 
   @@index([userId])
+  @@index([userId, startAt])
+  @@index([userId, eventType, startAt])
   @@index([subjectId])
 }
 
@@ -269,6 +279,7 @@ model Notification {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([userId, isRead, createdAt])
 }
 
 model Conversation {
