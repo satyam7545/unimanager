@@ -2,6 +2,8 @@
   "name": "unimanager-workspace",
   "version": "1.0.0",
   "description": "UniManager - An all-in-one student operating system",
+  "author": "Satyam Kumar",
+  "main": "electron/main.cjs",
   "scripts": {
     "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend && npm run prisma:generate --prefix backend",
     "dev:backend": "npm run dev --prefix backend",
@@ -14,9 +16,62 @@
     "prisma:generate": "npm run prisma:generate --prefix backend",
     "prisma:migrate": "npm run prisma:migrate --prefix backend",
     "prisma:push": "npm run prisma:push --prefix backend",
-    "prisma:studio": "npm run prisma:studio --prefix backend"
+    "prisma:studio": "npm run prisma:studio --prefix backend",
+    "electron:dev": "concurrently -k -n \"backend,frontend,electron\" -c \"blue,green,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:start": "electron .",
+    "electron:build": "npm run build && electron-builder --win",
+    "electron:build:dir": "npm run build && electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.satyam.unimanager",
+    "productName": "UniManager",
+    "copyright": "Copyright © 2026 Satyam Kumar",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      "frontend/dist/**/*",
+      "backend/dist/**/*",
+      "backend/package.json",
+      "backend/prisma/**/*",
+      "backend/.env",
+      "backend/node_modules/**/*"
+    ],
+    "asarUnpack": [
+      "backend/node_modules/@prisma/**/*",
+      "backend/node_modules/.prisma/**/*",
+      "backend/dist/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/resources/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "UniManager"
+    }
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "wait-on": "^9.5.1"
   }
 }

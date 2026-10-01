@@ -562,6 +562,54 @@ You are the built-in, native AI assistant operating directly inside this student
     return Array.from(new Set(words.filter(w => w.length >= 2 && !stopWords.has(w))));
   }
 
+  // Normalize provider API endpoints to ensure chat completions path is always intact
+  private resolveEndpoint(provider: string, customEndpoint: string | null): string {
+    const raw = (customEndpoint || '').trim().replace(/\/+$/, '');
+
+    if (provider === 'lmstudio') {
+      if (!raw) return 'http://127.0.0.1:1234/v1/chat/completions';
+      if (raw.endsWith('/chat/completions')) return raw;
+      if (raw.endsWith('/v1')) return `${raw}/chat/completions`;
+      return `${raw}/v1/chat/completions`;
+    }
+
+    if (provider === 'ollama') {
+      if (!raw) return 'http://127.0.0.1:11434/v1/chat/completions';
+      if (raw.endsWith('/chat/completions')) return raw;
+      if (raw.endsWith('/v1')) return `${raw}/chat/completions`;
+      return `${raw}/v1/chat/completions`;
+    }
+
+    if (provider === 'openai') {
+      if (!raw) return 'https://api.openai.com/v1/chat/completions';
+      if (raw.endsWith('/chat/completions')) return raw;
+      if (raw.endsWith('/v1')) return `${raw}/chat/completions`;
+      return `${raw}/v1/chat/completions`;
+    }
+
+    if (provider === 'deepseek') {
+      if (!raw) return 'https://api.deepseek.com/chat/completions';
+      if (raw.endsWith('/chat/completions')) return raw;
+      if (raw.endsWith('/v1')) return `${raw}/chat/completions`;
+      return `${raw}/chat/completions`;
+    }
+
+    if (provider === 'gemini') {
+      if (!raw) return 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+      if (raw.endsWith('/chat/completions')) return raw;
+      return `${raw}/chat/completions`;
+    }
+
+    if (provider === 'claude') {
+      if (!raw) return 'https://api.anthropic.com/v1/messages';
+      if (raw.endsWith('/messages')) return raw;
+      if (raw.endsWith('/v1')) return `${raw}/messages`;
+      return `${raw}/v1/messages`;
+    }
+
+    return raw;
+  }
+
   // LLM Dispatcher
   private async callLLMProvider(
     provider: string,
@@ -580,7 +628,7 @@ You are the built-in, native AI assistant operating directly inside this student
 
     // Map openai, deepseek, gemini, ollama, lmstudio to OpenAI-compatible formats
     if (provider === 'openai') {
-      url = customEndpoint || 'https://api.openai.com/v1/chat/completions';
+      url = this.resolveEndpoint('openai', customEndpoint);
       if (!apiKey) throw new Error('OpenAI API Key is missing. Please configure it in AI Settings.');
       headers['Authorization'] = `Bearer ${apiKey}`;
       body = {
@@ -590,8 +638,7 @@ You are the built-in, native AI assistant operating directly inside this student
         messages: this.formatMessagesForOpenAI(systemPrompt, history),
       };
     } else if (provider === 'gemini') {
-      // Use Gemini OpenAI-compatible completions endpoint
-      url = customEndpoint || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+      url = this.resolveEndpoint('gemini', customEndpoint);
       if (!apiKey) throw new Error('Gemini API Key is missing. Please configure it in AI Settings.');
       headers['Authorization'] = `Bearer ${apiKey}`;
       body = {
@@ -601,7 +648,7 @@ You are the built-in, native AI assistant operating directly inside this student
         messages: this.formatMessagesForOpenAI(systemPrompt, history),
       };
     } else if (provider === 'deepseek') {
-      url = customEndpoint || 'https://api.deepseek.com/chat/completions';
+      url = this.resolveEndpoint('deepseek', customEndpoint);
       if (!apiKey) throw new Error('DeepSeek API Key is missing. Please configure it in AI Settings.');
       headers['Authorization'] = `Bearer ${apiKey}`;
       body = {
@@ -611,9 +658,8 @@ You are the built-in, native AI assistant operating directly inside this student
         messages: this.formatMessagesForOpenAI(systemPrompt, history),
       };
     } else if (provider === 'ollama') {
-      const baseEndpoint = customEndpoint || 'http://127.0.0.1:11434/v1/chat/completions';
-      const resolvedModel = await this.getOllamaModelFallback(baseEndpoint, model || 'llama3');
-      url = baseEndpoint;
+      url = this.resolveEndpoint('ollama', customEndpoint);
+      const resolvedModel = await this.getOllamaModelFallback(url, model || 'llama3');
       body = {
         model: resolvedModel,
         temperature,
@@ -621,7 +667,10 @@ You are the built-in, native AI assistant operating directly inside this student
         messages: this.formatMessagesForOpenAI(systemPrompt, history),
       };
     } else if (provider === 'lmstudio') {
-      url = customEndpoint || 'http://127.0.0.1:1234/v1/chat/completions';
+      url = this.resolveEndpoint('lmstudio', customEndpoint);
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
       body = {
         model: model || 'local-model',
         temperature,
@@ -629,7 +678,7 @@ You are the built-in, native AI assistant operating directly inside this student
         messages: this.formatMessagesForOpenAI(systemPrompt, history),
       };
     } else if (provider === 'claude') {
-      url = customEndpoint || 'https://api.anthropic.com/v1/messages';
+      url = this.resolveEndpoint('claude', customEndpoint);
       if (!apiKey) throw new Error('Anthropic API Key is missing. Please configure it in AI Settings.');
       headers['x-api-key'] = apiKey;
       headers['anthropic-version'] = '2023-06-01';
@@ -692,7 +741,7 @@ You are the built-in, native AI assistant operating directly inside this student
 
     // Map openai, deepseek, gemini, ollama, lmstudio to OpenAI-compatible formats
     if (provider === 'openai') {
-      url = customEndpoint || 'https://api.openai.com/v1/chat/completions';
+      url = this.resolveEndpoint('openai', customEndpoint);
       if (!apiKey) throw new Error('OpenAI API Key is missing. Please configure it in AI Settings.');
       headers['Authorization'] = `Bearer ${apiKey}`;
       body = {
@@ -703,7 +752,7 @@ You are the built-in, native AI assistant operating directly inside this student
         stream: true,
       };
     } else if (provider === 'gemini') {
-      url = customEndpoint || 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+      url = this.resolveEndpoint('gemini', customEndpoint);
       if (!apiKey) throw new Error('Gemini API Key is missing. Please configure it in AI Settings.');
       headers['Authorization'] = `Bearer ${apiKey}`;
       body = {
@@ -714,7 +763,7 @@ You are the built-in, native AI assistant operating directly inside this student
         stream: true,
       };
     } else if (provider === 'deepseek') {
-      url = customEndpoint || 'https://api.deepseek.com/chat/completions';
+      url = this.resolveEndpoint('deepseek', customEndpoint);
       if (!apiKey) throw new Error('DeepSeek API Key is missing. Please configure it in AI Settings.');
       headers['Authorization'] = `Bearer ${apiKey}`;
       body = {
@@ -725,9 +774,8 @@ You are the built-in, native AI assistant operating directly inside this student
         stream: true,
       };
     } else if (provider === 'ollama') {
-      const baseEndpoint = customEndpoint || 'http://127.0.0.1:11434/v1/chat/completions';
-      const resolvedModel = await this.getOllamaModelFallback(baseEndpoint, model || 'llama3');
-      url = baseEndpoint;
+      url = this.resolveEndpoint('ollama', customEndpoint);
+      const resolvedModel = await this.getOllamaModelFallback(url, model || 'llama3');
       body = {
         model: resolvedModel,
         temperature,
@@ -736,7 +784,10 @@ You are the built-in, native AI assistant operating directly inside this student
         stream: true,
       };
     } else if (provider === 'lmstudio') {
-      url = customEndpoint || 'http://127.0.0.1:1234/v1/chat/completions';
+      url = this.resolveEndpoint('lmstudio', customEndpoint);
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
       body = {
         model: model || 'local-model',
         temperature,
@@ -745,7 +796,7 @@ You are the built-in, native AI assistant operating directly inside this student
         stream: true,
       };
     } else if (provider === 'claude') {
-      url = customEndpoint || 'https://api.anthropic.com/v1/messages';
+      url = this.resolveEndpoint('claude', customEndpoint);
       if (!apiKey) throw new Error('Anthropic API Key is missing. Please configure it in AI Settings.');
       headers['x-api-key'] = apiKey;
       headers['anthropic-version'] = '2023-06-01';

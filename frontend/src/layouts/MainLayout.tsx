@@ -27,7 +27,8 @@ import {
   Clock,
   AlertTriangle,
   Info,
-  Plus
+  Plus,
+  Keyboard
 } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/features/auth/store/authStore';
@@ -36,6 +37,7 @@ import { api } from '@/services/api';
 import { FocusModal } from '@/components/FocusModal';
 import { CommandPalette } from '@/components/CommandPalette';
 import { QuickCaptureModal } from '@/components/QuickCaptureModal';
+import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
 
 // Static nav items — defined outside component to prevent array recreation on every render
 export const menuItems = [
@@ -107,6 +109,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
+  const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
+  const isDesktop = typeof window !== 'undefined' && !!(window as any).electronAPI?.isElectron;
 
   // Synchronize activeSection with current URL route
   useEffect(() => {
@@ -181,11 +185,22 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Handle keyboard shortcuts: Alt+N for quick capture, Ctrl+K for search, Escape to close, [ to toggle sidebar
+  // Handle keyboard shortcuts: Alt+N / Ctrl+Q for quick capture, Ctrl+K for search, Alt+Arrows for nav, Escape to close, [ to toggle sidebar, ? for shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Alt+N / Option+N — toggle quick capture modal
-      if (e.altKey && (e.key === 'n' || e.key === 'N')) {
+      // Alt+LeftArrow -> History Back, Alt+RightArrow -> History Forward
+      if (e.altKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        navigate(-1);
+        return;
+      }
+      if (e.altKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        navigate(1);
+        return;
+      }
+      // Alt+N or Ctrl+Q — toggle quick capture modal
+      if ((e.altKey && (e.key === 'n' || e.key === 'N')) || ((e.ctrlKey || e.metaKey) && (e.key === 'q' || e.key === 'Q'))) {
         e.preventDefault();
         toggleQuickCapture();
         return;
@@ -196,22 +211,29 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         setCommandPaletteOpen(true);
         return;
       }
-      // Escape — close search, FAB, quick capture, or notifications
+      // Escape — close search, FAB, quick capture, notifications, or shortcuts modal
       if (e.key === 'Escape') {
         if (searchOpen) { setSearchOpen(false); setSearchQuery(''); }
         if (fabOpen) setFabOpen(false);
         if (quickCaptureOpen) setQuickCaptureOpen(false);
+        if (shortcutsModalOpen) setShortcutsModalOpen(false);
         return;
       }
       // [ key — toggle sidebar (only when not focused on an input)
       const tag = (e.target as HTMLElement).tagName;
       if (e.key === '[' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
         toggleSidebar();
+        return;
+      }
+      // ? key — toggle shortcuts cheatsheet (only when not focused on an input)
+      if (e.key === '?' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+        e.preventDefault();
+        setShortcutsModalOpen((prev) => !prev);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [searchOpen, fabOpen, quickCaptureOpen, toggleSidebar, toggleQuickCapture, setCommandPaletteOpen, setQuickCaptureOpen]);
+  }, [searchOpen, fabOpen, quickCaptureOpen, shortcutsModalOpen, toggleSidebar, toggleQuickCapture, setCommandPaletteOpen, setQuickCaptureOpen, navigate]);
 
   const { data: searchResults, isLoading: searchLoading } = useQuery({
     queryKey: ['globalSearch', debouncedQuery],
@@ -469,23 +491,43 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {/* Mobile Top Navigation + Bottom Navigation Bar */}
       <div className="flex-1 flex flex-col min-w-0 relative pb-16 md:pb-0 z-10">
         {/* Top Header */}
-        <header className="h-16 border-b border-white/5 bg-black/20 backdrop-blur-md flex items-center justify-between px-6 z-40 shrink-0">
-          <div className="flex items-center gap-3">
+        <header className={`h-14 border-b border-white/5 bg-black/30 backdrop-blur-xl flex items-center justify-between px-4 sm:px-6 z-40 shrink-0 app-drag-region ${
+          isDesktop ? 'pr-36' : ''
+        }`}>
+          <div className="flex items-center gap-3 app-no-drag">
+            {/* Desktop Navigation Back / Forward Buttons */}
+            <div className="hidden sm:flex items-center gap-1 mr-1">
+              <button
+                onClick={() => navigate(-1)}
+                className="w-7 h-7 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-white/[0.06] text-zinc-400 hover:text-white flex items-center justify-center transition-all active:scale-95"
+                title="Go Back (Alt + ←)"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => navigate(1)}
+                className="w-7 h-7 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-white/[0.06] text-zinc-400 hover:text-white flex items-center justify-center transition-all active:scale-95"
+                title="Go Forward (Alt + →)"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
             <button
               onClick={() => setMobileMenuOpen(true)}
               className="md:hidden p-2 -ml-2 text-zinc-400 hover:text-white hover:bg-white/[0.02] rounded-lg"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <h1 className="text-lg md:text-xl font-bold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
+            <h1 className="text-base md:text-lg font-extrabold bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent truncate">
               {activeSection}
             </h1>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2.5 sm:gap-3.5 app-no-drag">
             {/* Global Semester Filter */}
             <div className="flex items-center gap-1.5 bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-lg px-2.5 py-1 text-xs font-semibold text-zinc-300 transition-all select-none">
-              <span className="text-[10px] uppercase font-bold text-zinc-500">Semester:</span>
+              <span className="text-[10px] uppercase font-bold text-zinc-500">Sem:</span>
               <select
                 value={selectedSemester}
                 onChange={(e) => setSelectedSemester(e.target.value)}
@@ -494,7 +536,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 <option value="all" className="bg-zinc-950 text-zinc-300">All</option>
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
                   <option key={s} value={String(s)} className="bg-zinc-950 text-zinc-300">
-                    Semester {s}
+                    {s}
                   </option>
                 ))}
               </select>
@@ -502,22 +544,33 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             {/* Quick Capture Button */}
             <button
               onClick={() => toggleQuickCapture()}
-              className="p-2 text-zinc-300 hover:text-white hover:bg-primary/20 rounded-lg transition-all hidden sm:flex items-center gap-1.5 border border-primary/30 bg-primary/10 shadow-sm shadow-primary/20"
-              title="Quick Capture Note / Task / Assignment (Alt+N)"
+              className="p-1.5 sm:px-2.5 sm:py-1 text-zinc-300 hover:text-white hover:bg-primary/20 rounded-lg transition-all hidden sm:flex items-center gap-1.5 border border-primary/30 bg-primary/10 shadow-sm shadow-primary/20"
+              title="Quick Capture Note / Task / Assignment (Alt+N or Ctrl+Q)"
             >
-              <Plus className="w-4 h-4 text-primary" />
+              <Plus className="w-3.5 h-3.5 text-primary" />
               <span className="text-xs font-semibold text-zinc-200">Capture</span>
-              <kbd className="text-[10px] bg-primary/20 px-1.5 py-0.5 rounded text-primary-200 border border-primary/30 leading-none">Alt N</kbd>
+              <kbd className="text-[9px] bg-primary/20 px-1 py-0.5 rounded text-primary-200 border border-primary/30 leading-none">Alt N</kbd>
             </button>
 
             {/* Global Search Button */}
             <button
               onClick={() => setCommandPaletteOpen(true)}
-              className="p-2 text-zinc-400 hover:text-white hover:bg-white/[0.02] rounded-lg transition-colors hidden sm:flex items-center gap-2 border border-white/5 bg-white/[0.01]"
+              className="p-1.5 sm:px-2.5 sm:py-1 text-zinc-400 hover:text-white hover:bg-white/[0.02] rounded-lg transition-colors hidden sm:flex items-center gap-2 border border-white/5 bg-white/[0.01]"
+              title="Global Search & Actions (Ctrl+K)"
             >
-              <Search className="w-4 h-4" />
-              <span className="text-xs text-zinc-500 pr-4">Search...</span>
-              <kbd className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-zinc-400 border border-white/10 leading-none">Ctrl K</kbd>
+              <Search className="w-3.5 h-3.5" />
+              <span className="text-xs text-zinc-500 pr-2">Search</span>
+              <kbd className="text-[9px] bg-white/10 px-1 py-0.5 rounded text-zinc-400 border border-white/10 leading-none">Ctrl K</kbd>
+            </button>
+
+            {/* Keyboard Shortcuts Cheatsheet Trigger */}
+            <button
+              onClick={() => setShortcutsModalOpen(true)}
+              className="p-1.5 sm:px-2 sm:py-1 text-zinc-400 hover:text-white hover:bg-white/[0.02] rounded-lg transition-colors hidden md:flex items-center gap-1 border border-white/5 bg-white/[0.01]"
+              title="Windows Keyboard Shortcuts (?)"
+            >
+              <Keyboard className="w-3.5 h-3.5" />
+              <kbd className="text-[9px] bg-white/10 px-1 py-0.5 rounded text-zinc-400 border border-white/10 leading-none">?</kbd>
             </button>
 
             {/* Notification Bell with Dropdown Drawer */}
@@ -1091,10 +1144,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         })}
       </div>
 
-      {/* Global Focus Mode & Command Palette */}
+      {/* Global Focus Mode, Command Palette & Shortcuts */}
       <FocusModal />
       <CommandPalette />
       <QuickCaptureModal />
+      <KeyboardShortcutsModal
+        isOpen={shortcutsModalOpen}
+        onClose={() => setShortcutsModalOpen(false)}
+      />
     </div>
   );
 };

@@ -2,7 +2,9 @@ import { useAuthStore } from '../features/auth/store/authStore';
 
 export const API_HOST = import.meta.env.VITE_API_URL
   ? new URL(import.meta.env.VITE_API_URL).origin
-  : `${window.location.protocol}//${window.location.hostname}:5000`;
+  : (typeof window !== 'undefined' && (window.location.protocol === 'file:' || !window.location.hostname))
+    ? 'http://localhost:5000'
+    : `${window.location.protocol}//${window.location.hostname}:5000`;
 
 export const BASE_URL = `${API_HOST}/api/v1`;
 

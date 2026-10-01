@@ -86,7 +86,7 @@
   }
 }
 
-/* Custom Scrollbar Styles */
+/* Custom Scrollbar Styles for Native Desktop Feel */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -97,12 +97,23 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 9999px;
+  transition: background 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Windows Desktop Native Drag & No-Drag Regions */
+.app-drag-region {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
 }
 
 /* Glassmorphism utility classes */

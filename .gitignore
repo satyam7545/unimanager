@@ -10,6 +10,7 @@ node_modules/
 # Build outputs
 dist/
 build/
+dist-electron/
 
 # IDE and editor files
 .vscode/
