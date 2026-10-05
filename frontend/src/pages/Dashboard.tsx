@@ -33,7 +33,7 @@ interface BarChartProps {
   dailyStudyHours: { day: string; hrs: number }[];
 }
 
-const StudyBarChart: React.FC<BarChartProps> = ({ dailyStudyHours }) => {
+const StudyBarChart: React.FC<BarChartProps> = React.memo(({ dailyStudyHours }) => {
   const bars = dailyStudyHours.length === 0 ? EMPTY_DAYS : dailyStudyHours;
   const maxHrs = dailyStudyHours.length === 0 ? 1 : Math.max(...dailyStudyHours.map((d) => d.hrs), 1);
 
@@ -56,7 +56,7 @@ const StudyBarChart: React.FC<BarChartProps> = ({ dailyStudyHours }) => {
       })}
     </div>
   );
-};
+});
 
 export const Dashboard: React.FC = () => {
   const queryClient = useQueryClient();

@@ -33,12 +33,16 @@ if (!process.env.JWT_REFRESH_SECRET) {
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import compression from 'compression';
 import apiRouter from './routes/api';
 import { errorHandler } from './middleware/error.middleware';
 import { prisma } from './utils/prisma';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Compress all HTTP responses
+app.use(compression());
 
 // Security Middlewares with relaxed CSP for desktop/local assets
 app.use(
