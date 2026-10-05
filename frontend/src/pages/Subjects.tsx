@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, FolderOpen, Trash2, ArrowLeft, ExternalLink, Link, FileText, Calendar, AlertCircle, Paperclip, Edit3, X, Clock } from 'lucide-react';
-import { api, API_HOST } from '@/services/api';
+import { Plus, FolderOpen, Trash2, ArrowLeft, ExternalLink, Link, FileText, Calendar, AlertCircle, Edit3, X, Clock, Eye } from 'lucide-react';
+import { api } from '@/services/api';
 import { GlassCard } from '@/components/GlassCard';
 import { useUIStore } from '@/store/uiStore';
+import { AttachmentPill, AttachmentCard } from '@/components/AttachmentItem';
+import { usePdfViewerStore } from '@/store/pdfViewerStore';
 
 export const Subjects: React.FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { openPdf } = usePdfViewerStore();
   const { id: paramSubjectId } = useParams<{ id?: string }>();
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(paramSubjectId || null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -254,24 +257,10 @@ export const Subjects: React.FC = () => {
                       Updated {new Date(note.updatedAt).toLocaleDateString()}
                     </span>
                     {note.attachments && note.attachments.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2.5 pt-2.5 border-t border-white/5">
-                        {note.attachments.map((att: any) => {
-                          const fileUrl = `${API_HOST}${att.filePath}`;
-                          return (
-                            <a
-                              key={att.id}
-                              href={fileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              download
-                              className="inline-flex items-center gap-1 text-[9px] bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white px-1.5 py-0.5 rounded border border-white/5 transition-all max-w-[150px] truncate"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Paperclip className="w-2.5 h-2.5 text-zinc-500" />
-                              <span className="truncate">{att.fileName}</span>
-                            </a>
-                          );
-                        })}
+                      <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2.5 border-t border-white/5">
+                        {note.attachments.map((att: any) => (
+                          <AttachmentPill key={att.id} attachment={att} />
+                        ))}
                       </div>
                     )}
                   </GlassCard>
@@ -305,24 +294,10 @@ export const Subjects: React.FC = () => {
                       Due {new Date(ass.deadline).toLocaleDateString()}
                     </span>
                     {ass.attachments && ass.attachments.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2.5 pt-2.5 border-t border-white/5">
-                        {ass.attachments.map((att: any) => {
-                          const fileUrl = `${API_HOST}${att.filePath}`;
-                          return (
-                            <a
-                              key={att.id}
-                              href={fileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              download
-                              className="inline-flex items-center gap-1 text-[9px] bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white px-1.5 py-0.5 rounded border border-white/5 transition-all max-w-[150px] truncate"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Paperclip className="w-2.5 h-2.5 text-zinc-500" />
-                              <span className="truncate">{att.fileName}</span>
-                            </a>
-                          );
-                        })}
+                      <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2.5 border-t border-white/5">
+                        {ass.attachments.map((att: any) => (
+                          <AttachmentPill key={att.id} attachment={att} />
+                        ))}
                       </div>
                     )}
                   </GlassCard>
@@ -343,16 +318,16 @@ export const Subjects: React.FC = () => {
               <div className="p-4 rounded-xl border border-white/5 bg-white/[0.01] flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <span className="text-sm font-semibold text-zinc-200 block truncate">Syllabus PDF Reference</span>
-                  <span className="text-[10px] text-zinc-500 truncate block">https://university-portal.edu/docs/syllabus.pdf</span>
+                  <span className="text-[10px] text-zinc-500 truncate block">University Curriculum Guide</span>
                 </div>
-                <a
-                  href="https://university-portal.edu/docs/syllabus.pdf"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors shrink-0"
+                <button
+                  type="button"
+                  onClick={() => openPdf({ url: 'https://university-portal.edu/docs/syllabus.pdf', title: 'Syllabus PDF Reference' })}
+                  className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 text-xs font-semibold flex items-center gap-1.5 transition-all shrink-0"
                 >
-                  <ExternalLink className="w-4 h-4" />
-                </a>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Preview</span>
+                </button>
               </div>
 
               <div className="p-4 rounded-xl border border-white/5 bg-white/[0.01] flex items-center justify-between gap-3">
@@ -558,27 +533,12 @@ export const Subjects: React.FC = () => {
 
               {/* Attachments inside modal */}
               {viewingNote.attachments && viewingNote.attachments.length > 0 && (
-                <div className="space-y-2 border-t border-white/5 pt-4 mt-6">
-                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">Attached Files</span>
-                  <div className="flex flex-wrap gap-2">
-                    {viewingNote.attachments.map((att: any) => {
-                      const fileUrl = `${API_HOST}${att.filePath}`;
-                      return (
-                        <a
-                          key={att.id}
-                          href={fileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          download
-                          className="inline-flex items-center gap-1.5 text-xs bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white px-3 py-1.5 rounded-lg border border-white/5 transition-all"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Paperclip className="w-3.5 h-3.5 text-zinc-400" />
-                          <span>{att.fileName}</span>
-                          <span className="text-[10px] text-zinc-500">({(att.fileSize / 1024).toFixed(1)} KB)</span>
-                        </a>
-                      );
-                    })}
+                <div className="space-y-3 border-t border-white/5 pt-4 mt-6">
+                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">Attached Study Documents</span>
+                  <div className="grid grid-cols-1 gap-2">
+                    {viewingNote.attachments.map((att: any) => (
+                      <AttachmentCard key={att.id} attachment={att} />
+                    ))}
                   </div>
                 </div>
               )}
@@ -677,27 +637,12 @@ export const Subjects: React.FC = () => {
 
               {/* Attachments */}
               {viewingAssignment.attachments && viewingAssignment.attachments.length > 0 && (
-                <div className="space-y-2 border-t border-white/5 pt-4 mt-6">
-                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">Attachments</span>
-                  <div className="flex flex-wrap gap-2">
-                    {viewingAssignment.attachments.map((att: any) => {
-                      const fileUrl = `${API_HOST}${att.filePath}`;
-                      return (
-                        <a
-                          key={att.id}
-                          href={fileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          download
-                          className="inline-flex items-center gap-1.5 text-xs bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white px-3 py-1.5 rounded-lg border border-white/5 transition-all"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Paperclip className="w-3.5 h-3.5 text-zinc-400" />
-                          <span>{att.fileName}</span>
-                          <span className="text-[10px] text-zinc-500">({(att.fileSize / 1024).toFixed(1)} KB)</span>
-                        </a>
-                      );
-                    })}
+                <div className="space-y-3 border-t border-white/5 pt-4 mt-6">
+                  <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block">Attached Assignment Briefs</span>
+                  <div className="grid grid-cols-1 gap-2">
+                    {viewingAssignment.attachments.map((att: any) => (
+                      <AttachmentCard key={att.id} attachment={att} />
+                    ))}
                   </div>
                 </div>
               )}

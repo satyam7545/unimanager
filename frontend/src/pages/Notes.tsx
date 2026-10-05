@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Folder, FolderPlus, FilePlus2, Trash2, Search, Pin, Star, FileText, ChevronLeft } from 'lucide-react';
+import { Folder, FolderPlus, FilePlus2, Trash2, Search, Pin, Star, FileText, ChevronLeft, Paperclip } from 'lucide-react';
 import { api } from '@/services/api';
 import { NoteEditor } from '@/components/NoteEditor';
 import { useUIStore } from '@/store/uiStore';
@@ -354,7 +354,7 @@ export const Notes: React.FC = () => {
                       navigate(`/notes/${note.id}`);
                       setMobilePanelView('editor'); // switch to editor on mobile tap
                     }}
-                    className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer border transition-all ${
+                    className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer border transition-all content-visibility-auto ${
                       isSelected
                         ? 'bg-primary/10 border-primary/20 text-white'
                         : 'border-transparent hover:bg-white/[0.02] text-zinc-300 hover:text-white'
@@ -363,6 +363,15 @@ export const Notes: React.FC = () => {
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       <FileText className={`w-4 h-4 shrink-0 ${isSelected ? 'text-primary' : 'text-zinc-500'}`} />
                       <span className="text-xs font-semibold truncate flex-1">{note.title}</span>
+                      {note.attachments && note.attachments.length > 0 && (
+                        <span
+                          className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/25 shrink-0 flex items-center gap-0.5"
+                          title={`${note.attachments.length} attachment(s) included`}
+                        >
+                          <Paperclip className="w-2.5 h-2.5" />
+                          <span>{note.attachments.length}</span>
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-1.5 shrink-0 pl-2">

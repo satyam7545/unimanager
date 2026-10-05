@@ -1,19 +1,44 @@
 import dotenv from 'dotenv';
-// Load environment variables first
+import path from 'path';
+import fs from 'fs';
+
+// Try standard locations for .env
+const candidateEnvFiles = [
+  path.join(process.cwd(), '.env'),
+  path.join(process.cwd(), 'backend', '.env'),
+  path.join(__dirname, '..', '.env'),
+  path.join(__dirname, '..', '..', 'backend', '.env'),
+  path.join(__dirname, '..', '..', '.env'),
+];
+
+for (const envFile of candidateEnvFiles) {
+  if (fs.existsSync(envFile)) {
+    dotenv.config({ path: envFile });
+    break;
+  }
+}
 dotenv.config();
+
+// Ensure critical environment variables have safe fallbacks
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = 'mysql://satya:$%40tyam%407545MySQL@129.154.233.66:3306/uni';
+}
+if (!process.env.JWT_ACCESS_SECRET) {
+  process.env.JWT_ACCESS_SECRET = 'unimanager_access_super_secret_key_12345!';
+}
+if (!process.env.JWT_REFRESH_SECRET) {
+  process.env.JWT_REFRESH_SECRET = 'unimanager_refresh_super_secret_key_54321!';
+}
 
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import path from 'path';
 import apiRouter from './routes/api';
 import { errorHandler } from './middleware/error.middleware';
 import { prisma } from './utils/prisma';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
-import fs from 'fs';
 
 // Security Middlewares with relaxed CSP for desktop/local assets
 app.use(
@@ -23,8 +48,35 @@ app.use(
   })
 );
 
-// Serve static uploads
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+import { findUploadedFile, getPrimaryUploadDir } from './utils/uploads';
+
+// Serve uploads with dynamic candidate resolution
+app.get('/uploads/:filename', (req, res, next) => {
+  const filename = req.params.filename;
+  const filePath = findUploadedFile(filename);
+
+  if (filePath) {
+    if (filename.toLowerCase().endsWith('.pdf')) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline');
+    }
+    return res.sendFile(filePath);
+  }
+  return next();
+});
+
+const primaryUploadDir = getPrimaryUploadDir();
+app.use(
+  '/uploads',
+  express.static(primaryUploadDir, {
+    setHeaders: (res, filePath) => {
+      if (filePath.toLowerCase().endsWith('.pdf')) {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'inline');
+      }
+    },
+  })
+);
 
 // CORS configuration supporting cookies, headers, and electron/localhost clients
 const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
@@ -51,13 +103,25 @@ app.use('/api/v1', apiRouter);
 
 // Serve frontend build if available (production / desktop mode)
 const candidateFrontendPaths = [
+  process.env.FRONTEND_DIST,
   path.join(process.cwd(), 'frontend', 'dist'),
   path.join(__dirname, '../../frontend/dist'),
   path.join(__dirname, '../frontend/dist'),
-];
-const frontendDist = candidateFrontendPaths.find((p) => fs.existsSync(p));
+  path.join(__dirname, '../../../frontend/dist'),
+  (process as any).resourcesPath ? path.join((process as any).resourcesPath, 'app.asar.unpacked', 'frontend', 'dist') : undefined,
+  (process as any).resourcesPath ? path.join((process as any).resourcesPath, 'frontend', 'dist') : undefined,
+].filter((p): p is string => Boolean(p && typeof p === 'string'));
+
+const frontendDist = candidateFrontendPaths.find((p) => {
+  try {
+    return fs.existsSync(p) && fs.existsSync(path.join(p, 'index.html'));
+  } catch {
+    return false;
+  }
+});
 
 if (frontendDist) {
+  console.log(`[Backend] Serving frontend static assets from: ${frontendDist}`);
   app.use(express.static(frontendDist));
   app.get('*', (req, res, next) => {
     if (req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/uploads')) {

@@ -4,6 +4,7 @@ import { BadRequestError, NotFoundError, ForbiddenError } from '../../utils/erro
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { getPrimaryUploadDir, getUploadCandidateDirs } from '../../utils/uploads';
 
 export class AttachmentController {
   upload = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -57,10 +58,7 @@ export class AttachmentController {
       }
 
       // Ensure upload directory exists
-      const uploadDir = path.join(process.cwd(), 'uploads');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
+      const uploadDir = getPrimaryUploadDir();
 
       // Generate unique file name
       const fileExt = path.extname(req.file.originalname);
@@ -112,12 +110,18 @@ export class AttachmentController {
         throw new ForbiddenError('Access to this attachment is denied.');
       }
 
-      // Delete file from disk
+      // Delete file from disk across candidate directories
       const filename = path.basename(attachment.filePath);
-      const filePathOnDisk = path.join(process.cwd(), 'uploads', filename);
-
-      if (fs.existsSync(filePathOnDisk)) {
-        await fs.promises.unlink(filePathOnDisk);
+      const candidateDirs = getUploadCandidateDirs();
+      for (const dir of candidateDirs) {
+        const filePathOnDisk = path.join(dir, filename);
+        if (fs.existsSync(filePathOnDisk)) {
+          try {
+            await fs.promises.unlink(filePathOnDisk);
+          } catch (e) {
+            console.warn(`Failed to unlink ${filePathOnDisk}:`, e);
+          }
+        }
       }
 
       // Delete database record

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, nativeTheme, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, nativeTheme } = require('electron');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
@@ -27,9 +27,9 @@ if (!gotTheLock) {
 
 function resolveBackendPath() {
   const possiblePaths = [
-    path.join(process.resourcesPath, 'app.asar.unpacked/backend/dist/index.js'),
-    path.join(process.resourcesPath, 'backend/dist/index.js'),
     path.join(__dirname, '../backend/dist/index.js'),
+    path.join(process.resourcesPath, 'backend/dist/index.js'),
+    path.join(process.resourcesPath, 'app.asar.unpacked/backend/dist/index.js'),
   ];
   return possiblePaths.find((p) => fs.existsSync(p));
 }
@@ -129,22 +129,6 @@ function startBackend() {
     }
   }
 
-  const backendRootDir = path.resolve(path.dirname(backendPath), '..');
-  const backendNodeModules = path.join(backendRootDir, 'node_modules');
-
-  const possibleFrontendPaths = [
-    path.join(process.resourcesPath, 'app.asar.unpacked/frontend/dist'),
-    path.join(process.resourcesPath, 'frontend/dist'),
-    path.join(__dirname, '../frontend/dist'),
-  ];
-  const resolvedFrontendDist = possibleFrontendPaths.find((p) => {
-    try {
-      return fs.existsSync(p) && fs.existsSync(path.join(p, 'index.html'));
-    } catch {
-      return false;
-    }
-  });
-
   const env = {
     ...process.env,
     ...envConfig,
@@ -152,52 +136,22 @@ function startBackend() {
     PORT: String(BACKEND_PORT),
     NODE_ENV: 'production',
     UPLOADS_DIR: userUploadsDir,
-    NODE_PATH: backendNodeModules,
-    FRONTEND_DIST: resolvedFrontendDist || '',
   };
 
-  if (!fs.existsSync(userDataDir)) {
-    try {
-      fs.mkdirSync(userDataDir, { recursive: true });
-    } catch (e) {
-      // Ignored
-    }
-  }
-
-  const logPath = path.join(userDataDir, 'backend.log');
-  let logStream = null;
-  try {
-    logStream = fs.createWriteStream(logPath, { flags: 'a' });
-    logStream.write(`\n=== Backend Start: ${new Date().toISOString()} ===\n`);
-    logStream.write(`Entry: ${backendPath}\nRoot: ${backendRootDir}\nNodeModules: ${backendNodeModules}\nFrontendDist: ${resolvedFrontendDist}\n`);
-  } catch (e) {
-    // Ignore
-  }
+  const backendRootDir = path.resolve(path.dirname(backendPath), '..');
 
   backendProcess = spawn(process.execPath, [backendPath], {
     env,
     cwd: backendRootDir,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: 'inherit',
     windowsHide: true,
   });
 
-  backendProcess.stdout?.on('data', (data) => {
-    if (logStream) logStream.write(`[OUT] ${data}`);
-    console.log(`[Backend] ${data}`);
-  });
-
-  backendProcess.stderr?.on('data', (data) => {
-    if (logStream) logStream.write(`[ERR] ${data}`);
-    console.error(`[Backend ERR] ${data}`);
-  });
-
   backendProcess.on('error', (err) => {
-    if (logStream) logStream.write(`[PROCESS ERROR] ${err}\n`);
     console.error('Failed to start backend process:', err);
   });
 
   backendProcess.on('exit', (code, signal) => {
-    if (logStream) logStream.write(`[PROCESS EXIT] code: ${code}, signal: ${signal}\n`);
     console.log(`Backend process exited with code ${code}, signal ${signal}`);
   });
 }
@@ -352,15 +306,6 @@ app.whenReady().then(() => {
   }
   createMainWindow();
 
-  // Register global shortcut to summon the app
-  globalShortcut.register('CommandOrControl+Shift+U', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-    }
-  });
-
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow();
@@ -383,13 +328,9 @@ function cleanup() {
   }
 }
 
-app.on('before-quit', () => {
-  cleanup();
-  globalShortcut.unregisterAll();
-});
+app.on('before-quit', cleanup);
 app.on('window-all-closed', () => {
   cleanup();
-  globalShortcut.unregisterAll();
   if (process.platform !== 'darwin') {
     app.quit();
   }

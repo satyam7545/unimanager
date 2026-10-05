@@ -140,6 +140,12 @@
   @apply transition-all duration-200 focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 hover:border-white/10;
 }
 
+/* Performance: Defer rendering for off-screen components */
+.content-visibility-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
+}
+
 /* Custom Scrollbar Styles for nested scrolling panels */
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;

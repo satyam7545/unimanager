@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, List, Kanban, Calendar, Clock, Trash2, Edit3, Filter, Paperclip, Download, RefreshCw, Sparkles, Check, CheckSquare, X, BookOpen } from 'lucide-react';
-import { api, API_HOST } from '@/services/api';
+import { Plus, List, Kanban, Calendar, Clock, Trash2, Edit3, Filter, Paperclip, RefreshCw, Sparkles, Check, CheckSquare, X, BookOpen } from 'lucide-react';
+import { api } from '@/services/api';
 import { GlassCard } from '@/components/GlassCard';
 import { useUIStore } from '@/store/uiStore';
+import { AttachmentPill, AttachmentCard } from '@/components/AttachmentItem';
 
 export const Assignments: React.FC = () => {
   const queryClient = useQueryClient();
@@ -13,6 +14,7 @@ export const Assignments: React.FC = () => {
   const [subjectFilter, setSubjectFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [onlyWithAttachments, setOnlyWithAttachments] = useState(false);
 
   // Batch action selection states
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -374,7 +376,11 @@ export const Assignments: React.FC = () => {
     );
   };
 
-  const filteredAssignments = assignments || [];
+  const filteredAssignments = React.useMemo(() => {
+    const list = assignments || [];
+    if (!onlyWithAttachments) return list;
+    return list.filter((a: any) => a.attachments && a.attachments.length > 0);
+  }, [assignments, onlyWithAttachments]);
 
   const handleSelectAll = () => {
     if (selectedIds.length === filteredAssignments.length) {
@@ -477,6 +483,21 @@ export const Assignments: React.FC = () => {
           <option value="COMPLETED">Completed</option>
         </select>
 
+        {/* Only With Attachments filter */}
+        <button
+          type="button"
+          onClick={() => setOnlyWithAttachments(!onlyWithAttachments)}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+            onlyWithAttachments
+              ? 'bg-rose-500/20 border-rose-500/40 text-rose-300 shadow-sm shadow-rose-950/30'
+              : 'border-white/10 bg-zinc-900/60 text-zinc-400 hover:text-white'
+          }`}
+          title="Filter assignments with attached PDF briefs or documents"
+        >
+          <Paperclip className="w-3.5 h-3.5 text-rose-400" />
+          <span>With Attachments / PDFs</span>
+        </button>
+
         {/* Select All Toggle Button */}
         <button
           type="button"
@@ -569,24 +590,10 @@ export const Assignments: React.FC = () => {
                     </span>
                   </div>
                   {ass.attachments && ass.attachments.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {ass.attachments.map((att: any) => {
-                        const fileUrl = `${API_HOST}${att.filePath}`;
-                        return (
-                          <a
-                            key={att.id}
-                            href={fileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            download
-                            className="inline-flex items-center gap-1 text-[10px] bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white px-2 py-0.5 rounded border border-white/5 transition-all"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Paperclip className="w-3 h-3 text-zinc-500" />
-                            <span>{att.fileName}</span>
-                          </a>
-                        );
-                      })}
+                    <div className="flex flex-wrap gap-1.5 mt-2.5">
+                      {ass.attachments.map((att: any) => (
+                        <AttachmentPill key={att.id} attachment={att} />
+                      ))}
                     </div>
                   )}
                 </div>
@@ -696,23 +703,9 @@ export const Assignments: React.FC = () => {
 
                       {ass.attachments && ass.attachments.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2.5">
-                          {ass.attachments.map((att: any) => {
-                            const fileUrl = `${API_HOST}${att.filePath}`;
-                            return (
-                              <a
-                                key={att.id}
-                                href={fileUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                download
-                                className="inline-flex items-center gap-1 text-[9px] bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white px-1.5 py-0.5 rounded border border-white/5 transition-all max-w-[120px] truncate"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Paperclip className="w-2.5 h-2.5 text-zinc-500" />
-                                <span className="truncate">{att.fileName}</span>
-                              </a>
-                            );
-                          })}
+                          {ass.attachments.map((att: any) => (
+                            <AttachmentPill key={att.id} attachment={att} compact={true} />
+                          ))}
                         </div>
                       )}
 
@@ -904,28 +897,19 @@ export const Assignments: React.FC = () => {
                   </div>
 
                   {(!editingAssignment.attachments || editingAssignment.attachments.length === 0) ? (
-                    <p className="text-[11px] text-zinc-500 italic">No files uploaded. Attach references or instructions.</p>
+                    <div className="p-4 rounded-xl border border-dashed border-white/10 bg-zinc-900/30 text-center">
+                      <p className="text-xs text-zinc-500">No documents uploaded yet. Upload assignment PDFs, briefs, or instructions.</p>
+                    </div>
                   ) : (
-                    <div className="space-y-1.5 max-h-24 overflow-y-auto pr-1">
-                      {editingAssignment.attachments.map((att: any) => {
-                        const fileUrl = `${API_HOST}${att.filePath}`;
-                        return (
-                          <div key={att.id} className="flex items-center justify-between p-1.5 rounded bg-zinc-900/60 border border-white/5 text-xs">
-                            <span className="truncate text-zinc-300 font-medium max-w-[200px]" title={att.fileName}>
-                              {att.fileName}
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-zinc-500">({(att.fileSize / 1024).toFixed(1)} KB)</span>
-                              <a href={fileUrl} target="_blank" rel="noreferrer" download className="p-0.5 text-zinc-400 hover:text-white transition-colors" title="Download">
-                                <Download className="w-3.5 h-3.5" />
-                              </a>
-                              <button type="button" onClick={() => { if (window.confirm(`Delete ${att.fileName}?`)) handleDeleteAttachment(att.id); }} className="p-0.5 text-zinc-500 hover:text-red-400 transition-colors" title="Delete">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                    <div className="grid grid-cols-1 gap-2 max-h-52 overflow-y-auto pr-1">
+                      {editingAssignment.attachments.map((att: any) => (
+                        <AttachmentCard
+                          key={att.id}
+                          attachment={att}
+                          onDelete={handleDeleteAttachment}
+                          isDeleting={deleteAttachmentMutation.isPending}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>

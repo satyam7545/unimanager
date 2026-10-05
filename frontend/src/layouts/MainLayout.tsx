@@ -38,6 +38,7 @@ import { FocusModal } from '@/components/FocusModal';
 import { CommandPalette } from '@/components/CommandPalette';
 import { QuickCaptureModal } from '@/components/QuickCaptureModal';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
+import { PdfViewerModal } from '@/components/PdfViewerModal';
 
 // Static nav items — defined outside component to prevent array recreation on every render
 export const menuItems = [
@@ -1152,6 +1153,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         isOpen={shortcutsModalOpen}
         onClose={() => setShortcutsModalOpen(false)}
       />
+      <PdfViewerModal />
     </div>
   );
 };

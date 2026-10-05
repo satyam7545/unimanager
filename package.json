@@ -1,6 +1,6 @@
 {
   "name": "unimanager-workspace",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "UniManager - An all-in-one student operating system",
   "author": "Satyam Kumar",
   "main": "electron/main.cjs",
@@ -36,12 +36,15 @@
       "backend/package.json",
       "backend/prisma/**/*",
       "backend/.env",
+      "backend/uploads/**/*",
+      "uploads/**/*",
       "backend/node_modules/**/*"
     ],
     "asarUnpack": [
-      "backend/node_modules/@prisma/**/*",
-      "backend/node_modules/.prisma/**/*",
-      "backend/dist/**/*"
+      "backend/**/*",
+      "backend/node_modules/**/*",
+      "frontend/dist/**/*",
+      "uploads/**/*"
     ],
     "win": {
       "target": [

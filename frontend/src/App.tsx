@@ -1,13 +1,25 @@
 import React, { useEffect, useState, lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuthStore } from './features/auth/store/authStore';
 import { authService } from './features/auth/services/auth.service';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { MainLayout } from './layouts/MainLayout';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
+
+const PageTransition: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 15 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: -15 }}
+    transition={{ duration: 0.3, ease: 'easeOut' }}
+    className="w-full h-full"
+  >
+    {children}
+  </motion.div>
+);
 
 // Lazy load workspace pages for bundle performance optimization
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -37,6 +49,7 @@ const queryClient = new QueryClient({
 const AppContent: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuthStore();
   const [authView, setAuthView] = useState<'login' | 'register'>('login');
+  const location = useLocation(); // Need this for AnimatePresence
 
   // Trigger checkSession once at mount to retrieve valid cookies
   useEffect(() => {
@@ -94,25 +107,27 @@ const AppContent: React.FC = () => {
           </div>
         }
       >
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/subjects" element={<Subjects />} />
-          <Route path="/subjects/:id" element={<Subjects />} />
-          <Route path="/notes" element={<Notes />} />
-          <Route path="/notes/:id" element={<Notes />} />
-          <Route path="/assignments" element={<Assignments />} />
-          <Route path="/planner" element={<Planner />} />
-          <Route path="/calendar" element={<Calendar />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/habits" element={<Habits />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/ai" element={<AIAssistant />} />
-          <Route path="/ai-assistant" element={<Navigate to="/ai" replace />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+        <AnimatePresence mode="wait">
+          <Routes location={location} key={location.pathname}>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<PageTransition><Dashboard /></PageTransition>} />
+            <Route path="/subjects" element={<PageTransition><Subjects /></PageTransition>} />
+            <Route path="/subjects/:id" element={<PageTransition><Subjects /></PageTransition>} />
+            <Route path="/notes" element={<PageTransition><Notes /></PageTransition>} />
+            <Route path="/notes/:id" element={<PageTransition><Notes /></PageTransition>} />
+            <Route path="/assignments" element={<PageTransition><Assignments /></PageTransition>} />
+            <Route path="/planner" element={<PageTransition><Planner /></PageTransition>} />
+            <Route path="/calendar" element={<PageTransition><Calendar /></PageTransition>} />
+            <Route path="/projects" element={<PageTransition><Projects /></PageTransition>} />
+            <Route path="/habits" element={<PageTransition><Habits /></PageTransition>} />
+            <Route path="/analytics" element={<PageTransition><Analytics /></PageTransition>} />
+            <Route path="/ai" element={<PageTransition><AIAssistant /></PageTransition>} />
+            <Route path="/ai-assistant" element={<Navigate to="/ai" replace />} />
+            <Route path="/settings" element={<PageTransition><Settings /></PageTransition>} />
+            <Route path="/profile" element={<PageTransition><Profile /></PageTransition>} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </AnimatePresence>
       </Suspense>
     </MainLayout>
   );
