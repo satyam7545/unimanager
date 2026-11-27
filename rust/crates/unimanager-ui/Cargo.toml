@@ -1,0 +1,18 @@
+[package]
+name = "unimanager-ui"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+dioxus.workspace = true
+pulldown-cmark.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+unimanager-core = { path = "../unimanager-core" }
+unimanager-db = { path = "../unimanager-db" }
+unimanager-ai = { path = "../unimanager-ai" }
